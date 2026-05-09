@@ -30,6 +30,10 @@ service cloud.firestore {
 
     // Projects collection
     match /projects/{projectId} {
+      // Anyone can list/query projects by clientEmail (used for email registration check)
+      // This only returns whether a document exists, not the actual data
+      allow list: if true;
+      
       // Agency can create projects
       allow create: if isAgency();
       

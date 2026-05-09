@@ -370,7 +370,8 @@ export default function App() {
       const q = query(collection(db, 'projects'), where('clientEmail', '==', lowerEmail));
       const snapshot = await getDocs(q);
       return !snapshot.empty;
-    } catch {
+    } catch (err) {
+      console.error('isEmailRegistered error:', err);
       return false;
     }
   };

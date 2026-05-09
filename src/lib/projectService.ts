@@ -1,4 +1,4 @@
-import { db } from './firebase';
+import { db, auth } from './firebase';
 import { 
   collection, 
   addDoc, 
@@ -63,10 +63,12 @@ export async function createProject(
   clientCompany?: string,
   clientWebsite?: string
 ): Promise<string> {
+  const lowerEmail = clientEmail.toLowerCase();
+  
   const project = {
     name,
     description,
-    clientEmail: clientEmail.toLowerCase(),
+    clientEmail: lowerEmail,
     clientFirstName: clientFirstName || '',
     clientLastName: clientLastName || '',
     clientCompany: clientCompany || '',
@@ -82,6 +84,29 @@ export async function createProject(
   };
 
   const docRef = await addDoc(collection(db, PROJECTS_COLLECTION), project);
+
+  // Create a Firebase Auth account for the client via REST API (doesn't affect current session)
+  // This allows the client to use magic link / forgot password
+  const tempPassword = Math.random().toString(36).slice(2, 10) + 'A1!';
+  try {
+    const FIREBASE_API_KEY = 'AIzaSyBT7Cag4jABSmA9oxser58rCFAsPaxeL84';
+    const response = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${FIREBASE_API_KEY}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: lowerEmail,
+        password: tempPassword,
+        returnSecureToken: false,
+      }),
+    });
+    const data = await response.json();
+    if (!response.ok && data.error?.message !== 'EMAIL_EXISTS') {
+      console.error('Error creating client auth account:', data.error?.message);
+    }
+  } catch (err) {
+    console.error('Error creating client auth account via API:', err);
+  }
+
   return docRef.id;
 }
 
