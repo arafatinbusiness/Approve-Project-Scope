@@ -8,7 +8,7 @@ import { ProposedImprovements } from './components/ProposedImprovements';
 import { Project, ImprovementPoint } from './types';
 import { cn } from './lib/utils';
 import { auth, db } from './lib/firebase';
-import { signInWithEmailAndPassword, signOut, onAuthStateChanged, GoogleAuthProvider, signInWithRedirect, getRedirectResult, sendPasswordResetEmail, sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink } from 'firebase/auth';
+import { signInWithEmailAndPassword, signOut, onAuthStateChanged, GoogleAuthProvider, signInWithRedirect, getRedirectResult, sendPasswordResetEmail } from 'firebase/auth';
 import { 
   createProject, 
   getProjectsForClient, 
@@ -425,25 +425,6 @@ export default function App() {
       setIsSendingLink(false);
     }
   };
-
-  // Handle magic link completion on page load
-  useEffect(() => {
-    if (isSignInWithEmailLink(auth, window.location.href)) {
-      let email = window.localStorage.getItem('emailForSignIn');
-      if (!email) {
-        email = window.prompt('Please provide your email for confirmation');
-      }
-      if (email) {
-        signInWithEmailLink(auth, email, window.location.href)
-          .then(() => {
-            window.localStorage.removeItem('emailForSignIn');
-          })
-          .catch((error: any) => {
-            setAuthError(`Magic link sign-in failed: ${error.message || 'Please try again.'}`);
-          });
-      }
-    }
-  }, []);
 
   const handleSignOut = async () => {
     await signOut(auth);
