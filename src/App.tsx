@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import confetti from 'canvas-confetti';
-import { ShieldCheck, Rocket, Lock, ArrowRight, CheckCircle2, ChevronRight, UserCircle2, ShieldHalf, LogOut, Eye, EyeOff, Plus, FolderKanban, ExternalLink, Calendar, Clock, Users, Edit3, X, Save } from 'lucide-react';
+import { ShieldCheck, Rocket, Lock, ArrowRight, CheckCircle2, ChevronRight, UserCircle2, ShieldHalf, LogOut, Eye, EyeOff, Plus, FolderKanban, ExternalLink, Calendar, Clock, Users, Edit3, X, Save, Download, Filter } from 'lucide-react';
 import { Header } from './components/Header';
 import { ProgressBar } from './components/ProgressBar';
 import { FinanceCard } from './components/FinanceCard';
@@ -18,10 +18,12 @@ import {
   updateProject,
   addImprovement, 
   updateImprovement, 
+  completeImprovement,
   addMilestone,
   updateMilestone,
   deleteMilestone
 } from './lib/projectService';
+import * as XLSX from 'xlsx';
 
 const AGENCY_EMAILS = [
   'support@labinitial.com',
@@ -36,6 +38,120 @@ function detectRole(email: string): 'Agency' | 'Client' {
 }
 
 type View = 'login' | 'dashboard' | 'project';
+
+function formatDate(isoString: string): string {
+  if (!isoString) return 'N/A';
+  const d = new Date(isoString);
+  if (isNaN(d.getTime())) return 'N/A';
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  return `${months[d.getMonth()]} ${String(d.getDate()).padStart(2, '0')}, ${d.getFullYear()}`;
+}
+
+function getImprovementStatus(point: ImprovementPoint): string {
+  const parts: string[] = [];
+  parts.push(`"${point.title}"`);
+  if (point.agencyApproved && point.clientApproved) {
+    parts.push('Dual Approved');
+  } else if (point.agencyApproved) {
+    parts.push('Agency Approved');
+  } else if (point.clientApproved) {
+    parts.push('Client Approved');
+  } else {
+    parts.push('Pending Approval');
+  }
+  if (point.completed) {
+    parts.push('Completed');
+  } else {
+    parts.push('Not Completed');
+  }
+  parts.push(`Created: ${formatDate(point.createdAt)}`);
+  return parts.join(' | ');
+}
+
+function buildCurrentWebsiteUpdates(improvements: ImprovementPoint[]): string {
+  if (improvements.length === 0) return 'No agreements yet';
+  return improvements.map((point, idx) => {
+    return `${idx + 1}. ${getImprovementStatus(point)}`;
+  }).join('\n\n');
+}
+
+function exportToExcel(project: Project) {
+  const improvements = project.improvements || [];
+  
+  const row = {
+    'First Name': project.clientFirstName || '',
+    'Last Name': project.clientLastName || '',
+    'Company': project.clientCompany || '',
+    'Website': project.clientWebsite || '',
+    'Email': project.clientEmail,
+    'Current Website Updates': buildCurrentWebsiteUpdates(improvements),
+  };
+
+  const ws = XLSX.utils.json_to_sheet([row]);
+  ws['!cols'] = [
+    { wch: 15 },
+    { wch: 15 },
+    { wch: 25 },
+    { wch: 30 },
+    { wch: 30 },
+    { wch: 120 },
+  ];
+
+  // Enable text wrapping for the Current Website Updates column
+  ws['!rows'] = [{ hpx: 200 }];
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Website Updates');
+  
+  const dateStr = new Date().toISOString().split('T')[0];
+  const safeName = project.name.replace(/[^a-zA-Z0-9]/g, '_');
+  XLSX.writeFile(wb, `${safeName}_${dateStr}.xlsx`);
+}
+
+function exportToExcelWithFilter(project: Project, dateFrom: string, dateTo: string) {
+  const improvements = project.improvements || [];
+  
+  const filtered = improvements.filter(point => {
+    if (!dateFrom && !dateTo) return true;
+    const created = new Date(point.createdAt).getTime();
+    if (dateFrom && created < new Date(dateFrom).getTime()) return false;
+    if (dateTo) {
+      const endDate = new Date(dateTo);
+      endDate.setHours(23, 59, 59, 999);
+      if (created > endDate.getTime()) return false;
+    }
+    return true;
+  });
+
+  const row = {
+    'First Name': project.clientFirstName || '',
+    'Last Name': project.clientLastName || '',
+    'Company': project.clientCompany || '',
+    'Website': project.clientWebsite || '',
+    'Email': project.clientEmail,
+    'Current Website Updates': buildCurrentWebsiteUpdates(filtered),
+  };
+
+  const ws = XLSX.utils.json_to_sheet([row]);
+  ws['!cols'] = [
+    { wch: 15 },
+    { wch: 15 },
+    { wch: 25 },
+    { wch: 30 },
+    { wch: 30 },
+    { wch: 120 },
+  ];
+
+  ws['!rows'] = [{ hpx: 200 }];
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Website Updates');
+  
+  const dateStr = new Date().toISOString().split('T')[0];
+  const safeName = project.name.replace(/[^a-zA-Z0-9]/g, '_');
+  const filterStr = dateFrom || dateTo ? `_filtered_${dateFrom || ''}_${dateTo || ''}` : '';
+  XLSX.writeFile(wb, `${safeName}${filterStr}_${dateStr}.xlsx`);
+}
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -55,6 +171,10 @@ export default function App() {
   const [newProjectName, setNewProjectName] = useState('');
   const [newProjectDesc, setNewProjectDesc] = useState('');
   const [newClientEmail, setNewClientEmail] = useState('');
+  const [newClientFirstName, setNewClientFirstName] = useState('');
+  const [newClientLastName, setNewClientLastName] = useState('');
+  const [newClientCompany, setNewClientCompany] = useState('');
+  const [newClientWebsite, setNewClientWebsite] = useState('');
   const [newTotalValue, setNewTotalValue] = useState('1000');
   const [newStartDate, setNewStartDate] = useState('');
 
@@ -63,6 +183,10 @@ export default function App() {
   const [editProjectName, setEditProjectName] = useState('');
   const [editProjectDesc, setEditProjectDesc] = useState('');
   const [editClientEmail, setEditClientEmail] = useState('');
+  const [editClientFirstName, setEditClientFirstName] = useState('');
+  const [editClientLastName, setEditClientLastName] = useState('');
+  const [editClientCompany, setEditClientCompany] = useState('');
+  const [editClientWebsite, setEditClientWebsite] = useState('');
   const [editTotalValue, setEditTotalValue] = useState('');
   const [editStartDate, setEditStartDate] = useState('');
 
@@ -74,6 +198,11 @@ export default function App() {
   const [editMilestoneLabel, setEditMilestoneLabel] = useState('');
   const [editMilestoneDate, setEditMilestoneDate] = useState('');
   const [editMilestoneAmount, setEditMilestoneAmount] = useState('');
+
+  // Export filter state
+  const [showExportFilter, setShowExportFilter] = useState(false);
+  const [exportDateFrom, setExportDateFrom] = useState('');
+  const [exportDateTo, setExportDateTo] = useState('');
 
   // Listen for auth state changes
   useEffect(() => {
@@ -182,14 +311,28 @@ export default function App() {
     setIsLoading(true);
     try {
       const totalValue = parseFloat(newTotalValue) || 1000;
-      const projectId = await createProject(newProjectName, newProjectDesc, newClientEmail, email, totalValue, newStartDate || undefined);
-      // Reload projects
+      const projectId = await createProject(
+        newProjectName, 
+        newProjectDesc, 
+        newClientEmail, 
+        email, 
+        totalValue, 
+        newStartDate || undefined,
+        newClientFirstName || undefined,
+        newClientLastName || undefined,
+        newClientCompany || undefined,
+        newClientWebsite || undefined
+      );
       const updatedProjects = await getProjectsForAgency(email);
       setProjects(updatedProjects);
       setShowCreateForm(false);
       setNewProjectName('');
       setNewProjectDesc('');
       setNewClientEmail('');
+      setNewClientFirstName('');
+      setNewClientLastName('');
+      setNewClientCompany('');
+      setNewClientWebsite('');
       setNewTotalValue('1000');
       setNewStartDate('');
     } catch (err) {
@@ -217,7 +360,6 @@ export default function App() {
   const handleBackToDashboard = () => {
     setSelectedProject(null);
     setCurrentView('dashboard');
-    // Reload projects
     if (email) loadProjects(email, userRole);
   };
 
@@ -243,10 +385,12 @@ export default function App() {
       id: crypto.randomUUID(),
       title,
       description,
-      imageUrl,
+      ...(imageUrl ? { imageUrl } : {}),
       suggestedBy: userRole,
       agencyApproved: userRole === 'Agency',
-      clientApproved: userRole === 'Client'
+      clientApproved: userRole === 'Client',
+      completed: false,
+      createdAt: new Date().toISOString(),
     };
 
     try {
@@ -257,6 +401,26 @@ export default function App() {
       } : null);
     } catch (err) {
       console.error('Error adding improvement:', err);
+    }
+  };
+
+  const handleCompleteImprovement = async (id: string) => {
+    if (!selectedProject) return;
+    
+    try {
+      await completeImprovement(selectedProject.id, id);
+      setSelectedProject(prev => {
+        if (!prev) return null;
+        const updatedImprovements = (prev.improvements || []).map(p => {
+          if (p.id === id) {
+            return { ...p, completed: true, completedAt: new Date().toISOString() };
+          }
+          return p;
+        });
+        return { ...prev, improvements: updatedImprovements };
+      });
+    } catch (err) {
+      console.error('Error completing improvement:', err);
     }
   };
 
@@ -302,6 +466,10 @@ export default function App() {
     setEditProjectName(selectedProject.name);
     setEditProjectDesc(selectedProject.description);
     setEditClientEmail(selectedProject.clientEmail);
+    setEditClientFirstName(selectedProject.clientFirstName || '');
+    setEditClientLastName(selectedProject.clientLastName || '');
+    setEditClientCompany(selectedProject.clientCompany || '');
+    setEditClientWebsite(selectedProject.clientWebsite || '');
     setEditTotalValue(String(selectedProject.totalValue || 0));
     setEditStartDate(selectedProject.startDate || '');
     setShowEditForm(true);
@@ -316,6 +484,10 @@ export default function App() {
         name: editProjectName,
         description: editProjectDesc,
         clientEmail: editClientEmail.toLowerCase(),
+        clientFirstName: editClientFirstName || '',
+        clientLastName: editClientLastName || '',
+        clientCompany: editClientCompany || '',
+        clientWebsite: editClientWebsite || '',
         totalValue: parseFloat(editTotalValue) || 0,
         startDate: editStartDate || undefined,
       };
@@ -326,6 +498,19 @@ export default function App() {
     } catch (err) {
       console.error('Error updating project:', err);
     }
+  };
+
+  const handleExportAll = () => {
+    if (!selectedProject) return;
+    exportToExcel(selectedProject);
+  };
+
+  const handleExportFiltered = () => {
+    if (!selectedProject) return;
+    exportToExcelWithFilter(selectedProject, exportDateFrom, exportDateTo);
+    setShowExportFilter(false);
+    setExportDateFrom('');
+    setExportDateTo('');
   };
 
   // Login View
@@ -531,6 +716,50 @@ export default function App() {
                     onChange={(e) => setNewProjectDesc(e.target.value)}
                   />
                 </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[10px] uppercase tracking-[0.2em] text-agency-slate mb-2">Client First Name</label>
+                    <input
+                      type="text"
+                      placeholder="John"
+                      className="w-full bg-white border border-black/10 rounded-sm px-4 py-3 text-sm focus:outline-none focus:border-agency-green transition-colors"
+                      value={newClientFirstName}
+                      onChange={(e) => setNewClientFirstName(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] uppercase tracking-[0.2em] text-agency-slate mb-2">Client Last Name</label>
+                    <input
+                      type="text"
+                      placeholder="Doe"
+                      className="w-full bg-white border border-black/10 rounded-sm px-4 py-3 text-sm focus:outline-none focus:border-agency-green transition-colors"
+                      value={newClientLastName}
+                      onChange={(e) => setNewClientLastName(e.target.value)}
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[10px] uppercase tracking-[0.2em] text-agency-slate mb-2">Client Company</label>
+                    <input
+                      type="text"
+                      placeholder="Acme Inc."
+                      className="w-full bg-white border border-black/10 rounded-sm px-4 py-3 text-sm focus:outline-none focus:border-agency-green transition-colors"
+                      value={newClientCompany}
+                      onChange={(e) => setNewClientCompany(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] uppercase tracking-[0.2em] text-agency-slate mb-2">Client Website</label>
+                    <input
+                      type="text"
+                      placeholder="https://acme.com"
+                      className="w-full bg-white border border-black/10 rounded-sm px-4 py-3 text-sm focus:outline-none focus:border-agency-green transition-colors"
+                      value={newClientWebsite}
+                      onChange={(e) => setNewClientWebsite(e.target.value)}
+                    />
+                  </div>
+                </div>
                 <div>
                   <label className="block text-[10px] uppercase tracking-[0.2em] text-agency-slate mb-2">Client Email</label>
                   <input
@@ -584,140 +813,115 @@ export default function App() {
             </div>
           )}
 
-          {/* Projects List */}
+          {/* Project List */}
           {isLoading ? (
-            <div className="flex items-center justify-center py-20">
-              <div className="text-agency-slate text-sm font-mono">Loading projects...</div>
-            </div>
-          ) : projects.length === 0 ? (
-            <div className="text-center py-20 border-2 border-dashed border-slate-200 rounded-sm">
-              <FolderKanban size={40} className="mx-auto text-slate-300 mb-4" />
-              <h3 className="text-lg font-bold text-slate-400 mb-2">No Projects Yet</h3>
-              <p className="text-sm text-slate-400">
-                {userRole === 'Agency' 
-                  ? 'Create your first project to get started.' 
-                  : 'No projects have been assigned to you yet.'}
-              </p>
+            <div className="grid gap-4">
+              {[1,2,3].map(i => (
+                <div key={i} className="bg-slate-50 border border-slate-100 p-8 rounded-sm animate-pulse">
+                  <div className="h-6 bg-slate-200 rounded w-1/3 mb-3" />
+                  <div className="h-4 bg-slate-100 rounded w-2/3" />
+                </div>
+              ))}
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {projects.map((project) => {
-                const improvements = project.improvements || [];
-                const completedRevisions = improvements.filter(i => i.agencyApproved && i.clientApproved).length;
-                const totalRevisions = improvements.length;
-                const progress = totalRevisions > 0 ? Math.round((completedRevisions / totalRevisions) * 100) : 0;
-                
-                return (
-                  <button
-                    key={project.id}
-                    onClick={() => handleSelectProject(project.id)}
-                    className="text-left bg-white border border-slate-200 rounded-sm p-6 hover:border-agency-green hover:shadow-lg transition-all group"
-                  >
-                    <div className="flex items-start justify-between mb-4">
-                      <div className="flex-1 min-w-0">
-                        <h3 className="font-bold text-agency-black text-base truncate">{project.name}</h3>
-                        <p className="text-xs text-slate-400 mt-1 line-clamp-2">{project.description}</p>
+            <div className="grid gap-4">
+              {projects.map(project => (
+                <button
+                  key={project.id}
+                  onClick={() => handleSelectProject(project.id)}
+                  className="group bg-white border-2 border-slate-100 p-8 rounded-sm hover:border-agency-black transition-all text-left shadow-sm hover:shadow-[8px_8px_0px_rgba(15,23,42,0.05)]"
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-3">
+                        <h3 className="text-lg font-black tracking-tight text-agency-black uppercase">
+                          {project.name}
+                        </h3>
+                        {project.isApproved && (
+                          <span className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 bg-emerald-50 text-emerald-600 border border-emerald-100 rounded-full">
+                            Approved
+                          </span>
+                        )}
                       </div>
-                      <ExternalLink size={14} className="text-slate-300 group-hover:text-agency-green transition-colors shrink-0 ml-2" />
+                      <p className="text-xs text-slate-500 font-bold">{project.description}</p>
+                      <div className="flex items-center gap-4 text-[10px] font-mono text-slate-400">
+                        <span>{project.clientEmail}</span>
+                        {project.clientFirstName && <span>{project.clientFirstName} {project.clientLastName}</span>}
+                        {project.clientCompany && <span>{project.clientCompany}</span>}
+                        <span>${project.totalValue?.toLocaleString()}</span>
+                        <span>{formatDate(project.createdAt)}</span>
+                      </div>
                     </div>
-                    
-                    <div className="space-y-3">
-                      <div className="flex items-center gap-2 text-[10px] text-slate-400 font-mono">
-                        <Users size={12} />
-                        <span className="truncate">{project.clientEmail}</span>
-                      </div>
-                      <div className="flex items-center gap-2 text-[10px] text-slate-400 font-mono">
-                        <Calendar size={12} />
-                        <span>{new Date(project.createdAt).toLocaleDateString()}</span>
-                      </div>
-                      
-                      {/* Progress Bar */}
-                      <div className="space-y-1.5">
-                        <div className="flex justify-between text-[10px] font-mono">
-                          <span className="text-slate-400">Progress</span>
-                          <span className={cn(
-                            "font-bold",
-                            progress === 100 ? "text-agency-green" : "text-agency-black"
-                          )}>{progress}%</span>
-                        </div>
-                        <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                          <div 
-                            className={cn(
-                              "h-full rounded-full transition-all duration-500",
-                              progress === 100 ? "bg-agency-green" : "bg-agency-black"
-                            )}
-                            style={{ width: `${progress}%` }}
-                          />
-                        </div>
-                      </div>
-
-                      {project.isApproved && (
-                        <div className="flex items-center gap-1.5 text-[10px] font-bold text-agency-green uppercase tracking-widest">
-                          <ShieldCheck size={12} />
-                          Approved
-                        </div>
-                      )}
-                    </div>
-                  </button>
-                );
-              })}
+                    <ChevronRight size={20} className="text-slate-200 group-hover:text-agency-black transition-colors" />
+                  </div>
+                </button>
+              ))}
+              {projects.length === 0 && (
+                <div className="text-center py-20 border border-slate-100 rounded-sm bg-white">
+                  <FolderKanban size={40} className="mx-auto text-slate-200 mb-4" />
+                  <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">
+                    {userRole === 'Agency' ? 'No projects yet. Create your first project.' : 'No projects assigned yet.'}
+                  </p>
+                </div>
+              )}
             </div>
           )}
         </main>
-
-        <footer className="max-w-7xl mx-auto px-6 py-12 border-t border-black/5 flex flex-col md:flex-row justify-between items-center gap-6">
-          <div className="flex items-center gap-2 grayscale opacity-40">
-            <div className="w-5 h-5 bg-agency-black flex items-center justify-center rounded-sm">
-              <span className="text-white font-black text-[10px] tracking-tighter">L</span>
-            </div>
-            <span className="text-xs font-bold uppercase tracking-widest text-agency-black">Labinitial</span>
-          </div>
-          <div className="text-[10px] font-mono text-agency-slate uppercase tracking-widest">
-            © 2024 Labinitial Agency — All Rights Reserved — Performance Protocol ACTIVE
-          </div>
-        </footer>
       </div>
     );
   }
 
-  // Project Detail View
-  if (currentView === 'project' && selectedProject) {
-    const improvements = selectedProject.improvements || [];
-    const completedCount = improvements.filter(i => i.agencyApproved && i.clientApproved).length;
-    const totalCount = improvements.length;
+  // Project View
+  if (!selectedProject) return null;
 
-    return (
-      <div className="min-h-screen bg-white">
-        <Header projectName={selectedProject.name} />
-        
-        {/* Role Indicator */}
-        <div className="sticky top-20 z-30 bg-slate-50 border-b border-slate-200 py-2 px-6">
-          <div className="max-w-7xl mx-auto flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <button
-                onClick={handleBackToDashboard}
-                className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-agency-black transition-all mr-2"
-              >
-                <ChevronRight size={12} className="rotate-180" />
-                Back
-              </button>
-              <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Authenticated As:</span>
-              <div className="flex items-center gap-3 bg-white border border-slate-200 px-3 py-1.5 rounded-sm">
-                {userRole === 'Agency' ? (
-                  <ShieldHalf size={14} className="text-blue-600" />
-                ) : (
-                  <UserCircle2 size={14} className="text-purple-600" />
-                )}
-                <span className={cn(
-                  "text-[10px] font-black uppercase tracking-widest",
-                  userRole === 'Agency' ? "text-blue-600" : "text-purple-600"
-                )}>
-                  {userRole}
-                </span>
-                <span className="text-[9px] text-slate-400 font-mono">|</span>
-                <span className="text-[9px] text-slate-500 font-mono">{email}</span>
-              </div>
+  const improvements = selectedProject.improvements || [];
+  const completedCount = improvements.filter(i => i.agencyApproved && i.clientApproved).length;
+  const doneCount = improvements.filter(i => i.completed).length;
+  const totalCount = improvements.length;
+
+  return (
+    <div className="min-h-screen bg-white">
+      <Header projectName={selectedProject.name} />
+
+      {/* Role Indicator */}
+      <div className="sticky top-20 z-30 bg-slate-50 border-b border-slate-200 py-2 px-6">
+        <div className="max-w-7xl mx-auto flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={handleBackToDashboard}
+              className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-agency-black transition-colors"
+            >
+              <ChevronRight size={14} className="rotate-180" />
+              Back to Dashboard
+            </button>
+            <span className="text-[9px] text-slate-200">|</span>
+            <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Authenticated As:</span>
+            <div className="flex items-center gap-3 bg-white border border-slate-200 px-3 py-1.5 rounded-sm">
+              {userRole === 'Agency' ? (
+                <ShieldHalf size={14} className="text-blue-600" />
+              ) : (
+                <UserCircle2 size={14} className="text-purple-600" />
+              )}
+              <span className={cn(
+                "text-[10px] font-black uppercase tracking-widest",
+                userRole === 'Agency' ? "text-blue-600" : "text-purple-600"
+              )}>
+                {userRole}
+              </span>
+              <span className="text-[9px] text-slate-400 font-mono">|</span>
+              <span className="text-[9px] text-slate-500 font-mono">{email}</span>
             </div>
+          </div>
+          <div className="flex items-center gap-3">
+            {userRole === 'Agency' && (
+              <button
+                onClick={handleOpenEditForm}
+                className="flex items-center gap-2 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-agency-black hover:bg-slate-100 rounded-sm transition-all"
+              >
+                <Edit3 size={12} />
+                Edit Project
+              </button>
+            )}
             <button
               onClick={handleSignOut}
               className="flex items-center gap-2 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-sm transition-all"
@@ -727,397 +931,268 @@ export default function App() {
             </button>
           </div>
         </div>
-        
-        <main className="max-w-7xl mx-auto px-6 py-12">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
-            {/* Left Column: Scope & Progress */}
-            <div className="lg:col-span-8 space-y-16">
-              {/* Project Overview */}
-              <section className="space-y-8">
-                <div className="space-y-6">
-                  <div className="flex items-center gap-3">
-                    <div className="inline-flex items-center gap-3 px-4 py-1.5 bg-emerald-50 border border-emerald-100 rounded-full">
-                      <Rocket size={14} className="text-emerald-600" />
-                      <span className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-700">{selectedProject.name}</span>
-                    </div>
-                    {userRole === 'Agency' && (
-                      <button
-                        onClick={handleOpenEditForm}
-                        className="p-1.5 bg-slate-100 border border-slate-200 rounded-sm hover:bg-agency-black hover:text-white hover:border-agency-black transition-all"
-                        title="Edit Project"
-                      >
-                        <Edit3 size={12} />
-                      </button>
-                    )}
-                  </div>
-                  <h1 className="text-5xl md:text-7xl font-black tracking-tight leading-[0.9] text-agency-black">
-                    Scope & <br />
-                    <span className="text-emerald-600">Architecture.</span>
-                  </h1>
-                  <p className="text-agency-slate text-sm max-w-xl">{selectedProject.description}</p>
-                </div>
-                
-                <ProgressBar current={completedCount} total={totalCount} />
-              </section>
+      </div>
 
-              {/* Proposed Improvements Section */}
-              <div className="mt-20 pt-20 border-t-2 border-slate-100">
-                <ProposedImprovements 
-                  improvements={selectedProject.improvements || []}
-                  onAddPoint={handleAddImprovement}
-                  onApprove={handleApproveImprovement}
-                  userRole={userRole}
+      <main className="max-w-7xl mx-auto px-6 py-12 space-y-12">
+        {/* Project Header */}
+        <div className="flex items-start justify-between">
+          <div className="space-y-2">
+            <div className="flex items-center gap-4">
+              <h1 className="text-4xl md:text-5xl font-black tracking-tight text-agency-black uppercase">
+                {selectedProject.name}
+              </h1>
+              {selectedProject.isApproved && (
+                <span className="text-[10px] font-black uppercase tracking-widest px-3 py-1 bg-emerald-50 text-emerald-600 border border-emerald-100 rounded-full">
+                  Approved
+                </span>
+              )}
+            </div>
+            <p className="text-sm text-slate-500 font-bold">{selectedProject.description}</p>
+            <div className="flex items-center gap-4 text-[10px] font-mono text-slate-400">
+              <span>{selectedProject.clientEmail}</span>
+              {selectedProject.clientFirstName && <span>{selectedProject.clientFirstName} {selectedProject.clientLastName}</span>}
+              {selectedProject.clientCompany && <span>{selectedProject.clientCompany}</span>}
+              {selectedProject.clientWebsite && <span>{selectedProject.clientWebsite}</span>}
+              <span>${selectedProject.totalValue?.toLocaleString()}</span>
+              <span>Created {formatDate(selectedProject.createdAt)}</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            {/* Export buttons */}
+            <div className="relative">
+              <button
+                onClick={() => setShowExportFilter(!showExportFilter)}
+                className="flex items-center gap-2 px-4 py-2 border-2 border-slate-200 text-xs font-black uppercase tracking-widest rounded-sm hover:border-agency-black transition-all"
+              >
+                <Download size={14} />
+                Export
+              </button>
+              {showExportFilter && (
+                <div className="absolute right-0 top-full mt-2 bg-white border-2 border-agency-black p-4 rounded-sm shadow-xl z-50 min-w-[280px]">
+                  <div className="space-y-3">
+                    <h3 className="text-[10px] font-black uppercase tracking-widest text-agency-black">Export with Date Filter</h3>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-[9px] uppercase tracking-widest text-slate-400 mb-1">From</label>
+                        <input
+                          type="date"
+                          className="w-full border border-slate-200 px-2 py-1.5 text-xs rounded-sm focus:border-agency-black outline-none"
+                          value={exportDateFrom}
+                          onChange={(e) => setExportDateFrom(e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[9px] uppercase tracking-widest text-slate-400 mb-1">To</label>
+                        <input
+                          type="date"
+                          className="w-full border border-slate-200 px-2 py-1.5 text-xs rounded-sm focus:border-agency-black outline-none"
+                          value={exportDateTo}
+                          onChange={(e) => setExportDateTo(e.target.value)}
+                        />
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={handleExportFiltered}
+                        className="flex-1 bg-agency-black text-white px-3 py-2 text-[10px] font-black uppercase tracking-widest rounded-sm hover:bg-emerald-600 transition-all"
+                      >
+                        Export Filtered
+                      </button>
+                      <button
+                        onClick={handleExportAll}
+                        className="flex-1 border-2 border-slate-200 px-3 py-2 text-[10px] font-black uppercase tracking-widest rounded-sm hover:border-agency-black transition-all"
+                      >
+                        Export All
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+            {!selectedProject.isApproved && userRole === 'Client' && (
+              <button
+                onClick={handleApprove}
+                className="flex items-center gap-2 bg-emerald-500 text-white px-5 py-3 rounded-sm font-bold uppercase tracking-widest text-xs hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-500/20"
+              >
+                <ShieldCheck size={16} />
+                Approve Project
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Edit Project Form */}
+        {showEditForm && (
+          <div className="bg-slate-50 border border-slate-200 p-8 rounded-sm">
+            <h2 className="text-lg font-bold text-agency-black mb-6 uppercase tracking-widest">Edit Project</h2>
+            <form onSubmit={handleUpdateProject} className="space-y-5">
+              <div>
+                <label className="block text-[10px] uppercase tracking-[0.2em] text-agency-slate mb-2">Project Name</label>
+                <input
+                  type="text"
+                  required
+                  className="w-full bg-white border border-black/10 rounded-sm px-4 py-3 text-sm focus:outline-none focus:border-agency-green transition-colors"
+                  value={editProjectName}
+                  onChange={(e) => setEditProjectName(e.target.value)}
                 />
               </div>
-              
-              {/* Final Approval */}
-              {!selectedProject.isApproved ? (
-                <section className="bg-black/5 border border-dashed border-black/10 p-8 md:p-12 rounded-sm text-center space-y-8 mt-20">
-                  <div className="space-y-3">
-                    <h3 className="text-2xl font-bold tracking-tight text-agency-black">Ready to initiate build protocol?</h3>
-                    <p className="text-agency-slate max-w-md mx-auto text-sm leading-relaxed">
-                      By clicking approve, you confirm the {totalCount} technical points outlined above 
-                      as the immutable scope for this milestone.
-                    </p>
-                  </div>
-                  
-                  <button
-                    onClick={handleApprove}
-                    className="group relative inline-flex items-center gap-4 bg-agency-green text-white px-10 py-5 rounded-sm font-bold uppercase tracking-[0.2em] text-sm hover:scale-[1.02] active:scale-[0.98] transition-all shadow-[0_20px_50px_rgba(39,174,96,0.3)]"
-                  >
-                    Approve Project Scope
-                    <CheckCircle2 size={20} className="group-hover:rotate-12 transition-transform" />
-                  </button>
-                </section>
-              ) : (
-                <section className="bg-agency-green/5 border border-agency-green/20 p-8 rounded-sm flex flex-col md:flex-row items-center gap-6 justify-between mt-20">
-                  <div className="flex items-center gap-4 text-center md:text-left">
-                    <div className="w-12 h-12 rounded-full bg-agency-green/20 flex items-center justify-center text-agency-green shrink-0">
-                      <ShieldCheck size={24} />
-                    </div>
-                    <div>
-                      <h4 className="font-bold text-lg text-agency-black">Project Scope Approved</h4>
-                      <p className="text-agency-green text-sm font-mono font-medium">Verified: {selectedProject.approvedAt?.split('T')[0]}</p>
-                    </div>
-                  </div>
-                  <div className="text-[10px] uppercase font-bold tracking-widest px-4 py-2 bg-agency-green text-white rounded-full">
-                    Immutability Lock Active
-                  </div>
-                </section>
-              )}
-            </div>
-
-            {/* Right Column: Cards & Meta */}
-            <aside className="lg:col-span-4 space-y-8">
-              <FinanceCard 
-                totalValue={selectedProject.totalValue || 0} 
-                milestones={selectedProject.milestones || []} 
-              />
-              
-              {/* Milestones */}
-              {selectedProject.milestones && selectedProject.milestones.length > 0 && (
-                <div className="bg-emerald-50/50 border border-emerald-100 p-6 rounded-sm space-y-6">
-                  <h3 className="font-mono text-[11px] uppercase tracking-widest text-agency-black border-b border-emerald-100 pb-4 flex justify-between items-center font-bold">
-                    Production Timeline
-                    <ChevronRight size={14} className="text-emerald-500" />
-                  </h3>
-                  
-                  <div className="space-y-4">
-                    {selectedProject.milestones.map((item, idx) => (
-                      <div key={idx} className={cn(
-                        "flex items-center justify-between border-l-4 pl-4 py-1",
-                        item.current ? "border-agency-green" : "border-slate-200"
-                      )}>
-                        <span className={cn("text-xs font-black uppercase tracking-tight", item.current ? "text-agency-black" : "text-slate-400")}>{item.label}</span>
-                        <span className={cn("text-[10px] font-bold font-mono", item.current ? "text-agency-green" : "text-slate-400")}>{item.date}</span>
-                      </div>
-                    ))}
-                  </div>
+              <div>
+                <label className="block text-[10px] uppercase tracking-[0.2em] text-agency-slate mb-2">Description</label>
+                <textarea
+                  required
+                  rows={3}
+                  className="w-full bg-white border border-black/10 rounded-sm px-4 py-3 text-sm focus:outline-none focus:border-agency-green transition-colors resize-none"
+                  value={editProjectDesc}
+                  onChange={(e) => setEditProjectDesc(e.target.value)}
+                />
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[10px] uppercase tracking-[0.2em] text-agency-slate mb-2">Client First Name</label>
+                  <input
+                    type="text"
+                    className="w-full bg-white border border-black/10 rounded-sm px-4 py-3 text-sm focus:outline-none focus:border-agency-green transition-colors"
+                    value={editClientFirstName}
+                    onChange={(e) => setEditClientFirstName(e.target.value)}
+                  />
                 </div>
-              )}
-
-              <div className="p-6 border border-black/5 rounded-sm bg-white group shadow-sm">
-                <div className="text-[10px] uppercase tracking-widest text-agency-slate mb-3">Priority Support</div>
-                <p className="text-xs text-agency-black/60 leading-relaxed mb-4">
-                  Have questions about the technical roadmap? Direct line to your Lead Engineer is active.
-                </p>
-                <a 
-                  href="mailto:support@labinitial.com"
-                  className="text-[11px] font-bold uppercase tracking-widest border-b border-black/20 hover:border-agency-green transition-colors pb-1 text-agency-black"
+                <div>
+                  <label className="block text-[10px] uppercase tracking-[0.2em] text-agency-slate mb-2">Client Last Name</label>
+                  <input
+                    type="text"
+                    className="w-full bg-white border border-black/10 rounded-sm px-4 py-3 text-sm focus:outline-none focus:border-agency-green transition-colors"
+                    value={editClientLastName}
+                    onChange={(e) => setEditClientLastName(e.target.value)}
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[10px] uppercase tracking-[0.2em] text-agency-slate mb-2">Client Company</label>
+                  <input
+                    type="text"
+                    className="w-full bg-white border border-black/10 rounded-sm px-4 py-3 text-sm focus:outline-none focus:border-agency-green transition-colors"
+                    value={editClientCompany}
+                    onChange={(e) => setEditClientCompany(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] uppercase tracking-[0.2em] text-agency-slate mb-2">Client Website</label>
+                  <input
+                    type="text"
+                    className="w-full bg-white border border-black/10 rounded-sm px-4 py-3 text-sm focus:outline-none focus:border-agency-green transition-colors"
+                    value={editClientWebsite}
+                    onChange={(e) => setEditClientWebsite(e.target.value)}
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-[10px] uppercase tracking-[0.2em] text-agency-slate mb-2">Client Email</label>
+                <input
+                  type="email"
+                  required
+                  className="w-full bg-white border border-black/10 rounded-sm px-4 py-3 text-sm focus:outline-none focus:border-agency-green transition-colors"
+                  value={editClientEmail}
+                  onChange={(e) => setEditClientEmail(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] uppercase tracking-[0.2em] text-agency-slate mb-2">Total Project Value ($)</label>
+                <input
+                  type="number"
+                  required
+                  min="0"
+                  step="0.01"
+                  className="w-full bg-white border border-black/10 rounded-sm px-4 py-3 text-sm focus:outline-none focus:border-agency-green transition-colors"
+                  value={editTotalValue}
+                  onChange={(e) => setEditTotalValue(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] uppercase tracking-[0.2em] text-agency-slate mb-2">Start Date</label>
+                <input
+                  type="date"
+                  className="w-full bg-white border border-black/10 rounded-sm px-4 py-3 text-sm focus:outline-none focus:border-agency-green transition-colors"
+                  value={editStartDate}
+                  onChange={(e) => setEditStartDate(e.target.value)}
+                />
+              </div>
+              <div className="flex gap-3">
+                <button
+                  type="submit"
+                  className="bg-agency-black text-white px-6 py-3 rounded-sm font-bold uppercase tracking-widest text-xs hover:bg-agency-green transition-all"
                 >
-                  Contact Lead Engineer
-                </a>
+                  <Save size={14} className="inline mr-2" />
+                  Save Changes
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowEditForm(false)}
+                  className="px-6 py-3 text-xs font-bold uppercase tracking-widest text-slate-400 hover:text-agency-black transition-all"
+                >
+                  <X size={14} className="inline mr-2" />
+                  Cancel
+                </button>
               </div>
-            </aside>
+            </form>
           </div>
-          {/* Edit Project Modal */}
-          {showEditForm && (
-            <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-6 overflow-y-auto">
-              <div className="bg-white w-full max-w-2xl rounded-sm shadow-2xl my-8">
-                <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
-                  <h2 className="text-sm font-black uppercase tracking-widest text-agency-black">Edit Project</h2>
-                  <button
-                    onClick={() => setShowEditForm(false)}
-                    className="p-1 hover:bg-slate-100 rounded-sm transition-colors"
-                  >
-                    <X size={16} className="text-slate-400" />
-                  </button>
-                </div>
-                <form onSubmit={handleUpdateProject} className="p-6 space-y-5">
-                  <div>
-                    <label className="block text-[10px] uppercase tracking-[0.2em] text-agency-slate mb-2">Project Name</label>
-                    <input
-                      type="text"
-                      required
-                      className="w-full bg-white border border-black/10 rounded-sm px-4 py-3 text-sm focus:outline-none focus:border-agency-green transition-colors"
-                      value={editProjectName}
-                      onChange={(e) => setEditProjectName(e.target.value)}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] uppercase tracking-[0.2em] text-agency-slate mb-2">Description</label>
-                    <textarea
-                      required
-                      rows={3}
-                      className="w-full bg-white border border-black/10 rounded-sm px-4 py-3 text-sm focus:outline-none focus:border-agency-green transition-colors resize-none"
-                      value={editProjectDesc}
-                      onChange={(e) => setEditProjectDesc(e.target.value)}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] uppercase tracking-[0.2em] text-agency-slate mb-2">Client Email</label>
-                    <input
-                      type="email"
-                      required
-                      className="w-full bg-white border border-black/10 rounded-sm px-4 py-3 text-sm focus:outline-none focus:border-agency-green transition-colors"
-                      value={editClientEmail}
-                      onChange={(e) => setEditClientEmail(e.target.value)}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] uppercase tracking-[0.2em] text-agency-slate mb-2">Total Project Value ($)</label>
-                    <input
-                      type="number"
-                      required
-                      min="0"
-                      step="0.01"
-                      className="w-full bg-white border border-black/10 rounded-sm px-4 py-3 text-sm focus:outline-none focus:border-agency-green transition-colors"
-                      value={editTotalValue}
-                      onChange={(e) => setEditTotalValue(e.target.value)}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] uppercase tracking-[0.2em] text-agency-slate mb-2">Start Date</label>
-                    <input
-                      type="date"
-                      className="w-full bg-white border border-black/10 rounded-sm px-4 py-3 text-sm focus:outline-none focus:border-agency-green transition-colors"
-                      value={editStartDate}
-                      onChange={(e) => setEditStartDate(e.target.value)}
-                    />
-                  </div>
+        )}
 
-                  {/* Milestones Section */}
-                  <div className="border-t border-slate-200 pt-6 mt-6">
-                    <h3 className="text-xs font-black uppercase tracking-widest text-agency-black mb-4">Milestones & Budget</h3>
-                    
-                    {/* Existing Milestones */}
-                    <div className="space-y-3 mb-6">
-                      {(selectedProject?.milestones || []).map((ms) => (
-                        <div key={ms.id} className="bg-slate-50 border border-slate-200 rounded-sm p-4">
-                          {editingMilestoneId === ms.id ? (
-                            <div className="space-y-3">
-                              <input
-                                type="text"
-                                className="w-full bg-white border border-black/10 rounded-sm px-3 py-2 text-xs focus:outline-none focus:border-agency-green transition-colors"
-                                value={editMilestoneLabel}
-                                onChange={(e) => setEditMilestoneLabel(e.target.value)}
-                                placeholder="Milestone label"
-                              />
-                              <div className="flex gap-2">
-                                <input
-                                  type="date"
-                                  className="flex-1 bg-white border border-black/10 rounded-sm px-3 py-2 text-xs focus:outline-none focus:border-agency-green transition-colors"
-                                  value={editMilestoneDate}
-                                  onChange={(e) => setEditMilestoneDate(e.target.value)}
-                                />
-                                <input
-                                  type="number"
-                                  min="0"
-                                  step="0.01"
-                                  className="flex-1 bg-white border border-black/10 rounded-sm px-3 py-2 text-xs focus:outline-none focus:border-agency-green transition-colors"
-                                  value={editMilestoneAmount}
-                                  onChange={(e) => setEditMilestoneAmount(e.target.value)}
-                                  placeholder="Amount ($)"
-                                />
-                              </div>
-                              <div className="flex gap-2">
-                                <button
-                                  type="button"
-                                  onClick={async () => {
-                                    if (!selectedProject) return;
-                                    await updateMilestone(selectedProject.id, ms.id, {
-                                      label: editMilestoneLabel,
-                                      date: editMilestoneDate,
-                                      amount: parseFloat(editMilestoneAmount) || 0,
-                                    });
-                                    setSelectedProject(prev => prev ? {
-                                      ...prev,
-                                      milestones: prev.milestones.map(m => 
-                                        m.id === ms.id ? { ...m, label: editMilestoneLabel, date: editMilestoneDate, amount: parseFloat(editMilestoneAmount) || 0 } : m
-                                      )
-                                    } : null);
-                                    setEditingMilestoneId(null);
-                                  }}
-                                  className="text-[10px] font-bold uppercase tracking-widest bg-agency-green text-white px-3 py-1.5 rounded-sm hover:bg-agency-black transition-all"
-                                >
-                                  Save
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => setEditingMilestoneId(null)}
-                                  className="text-[10px] font-bold uppercase tracking-widest text-slate-400 px-3 py-1.5 hover:text-agency-black transition-all"
-                                >
-                                  Cancel
-                                </button>
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="flex items-center justify-between">
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2">
-                                  <span className="text-xs font-bold text-agency-black">{ms.label}</span>
-                                  <span className="text-[10px] text-slate-400 font-mono">{ms.date}</span>
-                                </div>
-                                <span className="text-[10px] font-mono text-agency-green font-bold">${(ms.amount || 0).toLocaleString()}</span>
-                              </div>
-                              <div className="flex items-center gap-1">
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setEditingMilestoneId(ms.id);
-                                    setEditMilestoneLabel(ms.label);
-                                    setEditMilestoneDate(ms.date);
-                                    setEditMilestoneAmount(String(ms.amount));
-                                  }}
-                                  className="p-1 hover:bg-slate-200 rounded-sm transition-colors"
-                                >
-                                  <Edit3 size={12} className="text-slate-400" />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={async () => {
-                                    if (!selectedProject) return;
-                                    await deleteMilestone(selectedProject.id, ms.id);
-                                    setSelectedProject(prev => prev ? {
-                                      ...prev,
-                                      milestones: prev.milestones.filter(m => m.id !== ms.id)
-                                    } : null);
-                                  }}
-                                  className="p-1 hover:bg-red-50 rounded-sm transition-colors"
-                                >
-                                  <X size={12} className="text-red-400" />
-                                </button>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
+        {/* Progress Bar */}
+        <ProgressBar current={completedCount} total={totalCount} doneCount={doneCount} />
 
-                    {/* Add New Milestone */}
-                    <div className="bg-agency-green/5 border border-dashed border-agency-green/20 rounded-sm p-4">
-                      <h4 className="text-[10px] font-bold uppercase tracking-widest text-agency-green mb-3">Add Milestone</h4>
-                      <div className="space-y-3">
-                        <input
-                          type="text"
-                          placeholder="Milestone label (e.g. Design Phase)"
-                          className="w-full bg-white border border-black/10 rounded-sm px-3 py-2 text-xs focus:outline-none focus:border-agency-green transition-colors"
-                          value={newMilestoneLabel}
-                          onChange={(e) => setNewMilestoneLabel(e.target.value)}
-                        />
-                        <div className="flex gap-2">
-                          <input
-                            type="date"
-                            className="flex-1 bg-white border border-black/10 rounded-sm px-3 py-2 text-xs focus:outline-none focus:border-agency-green transition-colors"
-                            value={newMilestoneDate}
-                            onChange={(e) => setNewMilestoneDate(e.target.value)}
-                          />
-                          <input
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            placeholder="Amount ($)"
-                            className="flex-1 bg-white border border-black/10 rounded-sm px-3 py-2 text-xs focus:outline-none focus:border-agency-green transition-colors"
-                            value={newMilestoneAmount}
-                            onChange={(e) => setNewMilestoneAmount(e.target.value)}
-                          />
-                        </div>
-                        <button
-                          type="button"
-                          onClick={async () => {
-                            if (!selectedProject || !newMilestoneLabel || !newMilestoneDate) return;
-                            const newMs = {
-                              id: crypto.randomUUID(),
-                              label: newMilestoneLabel,
-                              date: newMilestoneDate,
-                              current: false,
-                              completed: false,
-                              amount: parseFloat(newMilestoneAmount) || 0,
-                            };
-                            await addMilestone(selectedProject.id, newMs);
-                            setSelectedProject(prev => prev ? {
-                              ...prev,
-                              milestones: [...prev.milestones, newMs]
-                            } : null);
-                            setNewMilestoneLabel('');
-                            setNewMilestoneDate('');
-                            setNewMilestoneAmount('');
-                          }}
-                          className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest bg-agency-green text-white px-4 py-2 rounded-sm hover:bg-agency-black transition-all"
-                        >
-                          <Plus size={12} />
-                          Add Milestone
-                        </button>
-                      </div>
-                    </div>
-                  </div>
+        {/* Finance Card */}
+        <FinanceCard
+          milestones={selectedProject.milestones || []}
+          totalValue={selectedProject.totalValue || 0}
+          onAddMilestone={async (label, date, amount) => {
+            if (!selectedProject) return;
+            const newMs = {
+              id: crypto.randomUUID(),
+              label,
+              date,
+              current: false,
+              completed: false,
+              amount,
+            };
+            await addMilestone(selectedProject.id, newMs);
+            setSelectedProject(prev => prev ? {
+              ...prev,
+              milestones: [...(prev.milestones || []), newMs]
+            } : null);
+          }}
+          onUpdateMilestone={async (id, updates) => {
+            if (!selectedProject) return;
+            await updateMilestone(selectedProject.id, id, updates);
+            setSelectedProject(prev => {
+              if (!prev) return null;
+              const updatedMilestones = (prev.milestones || []).map(ms =>
+                ms.id === id ? { ...ms, ...updates } : ms
+              );
+              return { ...prev, milestones: updatedMilestones };
+            });
+          }}
+          onDeleteMilestone={async (id) => {
+            if (!selectedProject) return;
+            await deleteMilestone(selectedProject.id, id);
+            setSelectedProject(prev => {
+              if (!prev) return null;
+              return { ...prev, milestones: (prev.milestones || []).filter(ms => ms.id !== id) };
+            });
+          }}
+          userRole={userRole}
+        />
 
-                  <div className="flex gap-3 pt-2 border-t border-slate-200">
-                    <button
-                      type="submit"
-                      className="flex items-center gap-2 bg-agency-black text-white px-6 py-3 rounded-sm font-bold uppercase tracking-widest text-xs hover:bg-agency-green transition-all"
-                    >
-                      <Save size={14} />
-                      Save Changes
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setShowEditForm(false)}
-                      className="px-6 py-3 text-xs font-bold uppercase tracking-widest text-slate-400 hover:text-agency-black transition-all"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </form>
-              </div>
-            </div>
-          )}
-        </main>
-        
-        <footer className="max-w-7xl mx-auto px-6 py-12 border-t border-black/5 flex flex-col md:flex-row justify-between items-center gap-6">
-          <div className="flex items-center gap-2 grayscale opacity-40">
-            <div className="w-5 h-5 bg-agency-black flex items-center justify-center rounded-sm">
-              <span className="text-white font-black text-[10px] tracking-tighter">L</span>
-            </div>
-            <span className="text-xs font-bold uppercase tracking-widest text-agency-black">Labinitial</span>
-          </div>
-          <div className="text-[10px] font-mono text-agency-slate uppercase tracking-widest">
-            © 2024 Labinitial Agency — All Rights Reserved — Performance Protocol ACTIVE
-          </div>
-        </footer>
-      </div>
-    );
-  }
-
-  return null;
+        {/* Proposed Improvements */}
+        <ProposedImprovements 
+          improvements={selectedProject.improvements || []}
+          onAddPoint={handleAddImprovement}
+          onApprove={handleApproveImprovement}
+          onComplete={handleCompleteImprovement}
+          userRole={userRole}
+        />
+      </main>
+    </div>
+  );
 }
+                 

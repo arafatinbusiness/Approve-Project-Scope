@@ -1,4 +1,4 @@
-import { Plus, User, Shield, Check, X, AlertCircle, Image, ExternalLink } from 'lucide-react';
+import { Plus, User, Shield, Check, X, AlertCircle, Image, ExternalLink, CheckCircle, Calendar } from 'lucide-react';
 import { useState } from 'react';
 import { ImprovementPoint } from '../types';
 import { cn } from '../lib/utils';
@@ -7,10 +7,17 @@ interface ProposedImprovementsProps {
   improvements: ImprovementPoint[];
   onAddPoint: (title: string, description: string, imageUrl?: string) => void;
   onApprove: (id: string, role: 'Agency' | 'Client') => void;
+  onComplete: (id: string) => void;
   userRole: 'Agency' | 'Client';
 }
 
-export function ProposedImprovements({ improvements, onAddPoint, onApprove, userRole }: ProposedImprovementsProps) {
+function formatDate(isoString: string): string {
+  const d = new Date(isoString);
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  return `${months[d.getMonth()]} ${String(d.getDate()).padStart(2, '0')}, ${d.getFullYear()}`;
+}
+
+export function ProposedImprovements({ improvements, onAddPoint, onApprove, onComplete, userRole }: ProposedImprovementsProps) {
   const [isAdding, setIsAdding] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [newDesc, setNewDesc] = useState('');
@@ -51,8 +58,7 @@ export function ProposedImprovements({ improvements, onAddPoint, onApprove, user
     <div className="space-y-6">
       <div className="flex items-center justify-between border-b-2 border-agency-black pb-3">
         <div className="flex items-center gap-3">
-          <h2 className="text-xs font-black uppercase tracking-[0.3em] text-agency-black">Tasks</h2>
-          <span className="text-[10px] font-black font-mono text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">Double Approval Required</span>
+          <h2 className="text-xs font-black uppercase tracking-[0.3em] text-agency-black">Development Agreements</h2>
         </div>
         <button 
           onClick={() => setIsAdding(true)}
@@ -67,7 +73,7 @@ export function ProposedImprovements({ improvements, onAddPoint, onApprove, user
           <div className="space-y-4">
             <input 
               autoFocus
-              placeholder="Task title (e.g., Performance Tier 2)"
+              placeholder="Agreement title (e.g., Performance Tier 2)"
               className="w-full bg-white border border-slate-200 px-4 py-3 text-sm font-bold focus:border-agency-black outline-none placeholder:text-slate-300"
               value={newTitle}
               onChange={e => setNewTitle(e.target.value)}
@@ -120,7 +126,7 @@ export function ProposedImprovements({ improvements, onAddPoint, onApprove, user
               type="submit"
               className="px-6 py-2 bg-agency-black text-white text-xs font-black uppercase tracking-widest rounded-sm hover:bg-emerald-600 transition-colors"
             >
-              Propose Point
+              Propose Agreement
             </button>
           </div>
         </form>
@@ -132,7 +138,7 @@ export function ProposedImprovements({ improvements, onAddPoint, onApprove, user
             <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-slate-50 text-slate-300 mb-4">
               <AlertCircle size={24} />
             </div>
-            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">No tasks yet</p>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">No agreements yet</p>
           </div>
         )}
 
@@ -169,6 +175,12 @@ export function ProposedImprovements({ improvements, onAddPoint, onApprove, user
                   <p className="text-xs text-slate-500 font-bold leading-relaxed pr-8">
                     {point.description}
                   </p>
+                  {point.createdAt && (
+                    <div className="flex items-center gap-1.5 text-[10px] text-slate-400 font-mono">
+                      <Calendar size={11} />
+                      <span>Created {formatDate(point.createdAt)}</span>
+                    </div>
+                  )}
                   {point.imageUrl && (
                     <div className="mt-3">
                       <a 
@@ -246,6 +258,26 @@ export function ProposedImprovements({ improvements, onAddPoint, onApprove, user
                       )}
                     >
                       {point.clientApproved ? <Check size={20} strokeWidth={3} /> : <User size={18} className={userRole === 'Client' ? "group-hover/btn:text-agency-black" : ""} />}
+                    </button>
+                  </div>
+
+                  {/* Mark as Done - Client Only */}
+                  <div className="flex flex-col items-center gap-2">
+                    <div className="text-[9px] font-black uppercase tracking-widest text-slate-400">Done</div>
+                    <button 
+                      onClick={() => onComplete(point.id)}
+                      disabled={userRole !== 'Client' || point.completed}
+                      className={cn(
+                        "w-10 h-10 rounded-sm flex items-center justify-center border-2 transition-all",
+                        point.completed 
+                          ? "bg-blue-500 border-blue-500 text-white" 
+                          : userRole === 'Client' 
+                            ? "bg-white border-slate-200 text-slate-300 hover:border-blue-500 group/btn" 
+                            : "bg-slate-50 border-slate-100 text-slate-200 cursor-not-allowed"
+                      )}
+                      title={point.completed ? `Completed ${point.completedAt ? new Date(point.completedAt).toLocaleDateString() : ''}` : 'Mark as done'}
+                    >
+                      {point.completed ? <Check size={20} strokeWidth={3} /> : <CheckCircle size={18} className={userRole === 'Client' ? "group-hover/btn:text-blue-500" : ""} />}
                     </button>
                   </div>
                 </div>

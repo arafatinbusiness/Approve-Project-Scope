@@ -17,6 +17,9 @@ export interface ImprovementPoint {
   suggestedBy: 'Agency' | 'Client';
   agencyApproved: boolean;
   clientApproved: boolean;
+  completed: boolean;
+  completedAt?: string;
+  createdAt: string;
 }
 
 export interface Project {
@@ -24,6 +27,10 @@ export interface Project {
   name: string;
   description: string;
   clientEmail: string;
+  clientFirstName?: string;
+  clientLastName?: string;
+  clientCompany?: string;
+  clientWebsite?: string;
   createdBy: string;
   createdAt: string;
   startDate?: string;

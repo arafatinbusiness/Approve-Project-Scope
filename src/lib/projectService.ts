@@ -14,6 +14,20 @@ import { Project, ProjectTask, ImprovementPoint, Milestone } from '../types';
 
 const PROJECTS_COLLECTION = 'projects';
 
+/**
+ * Removes all keys with undefined values from an object.
+ * Firestore does not accept undefined values.
+ */
+function removeUndefined<T extends Record<string, any>>(obj: T): T {
+  const cleaned: Record<string, any> = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (value !== undefined) {
+      cleaned[key] = value;
+    }
+  }
+  return cleaned as T;
+}
+
 function generateDefaultMilestones(totalValue: number, startDate?: string): Milestone[] {
   const now = startDate ? new Date(startDate) : new Date();
   const weekFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
@@ -43,12 +57,20 @@ export async function createProject(
   clientEmail: string, 
   createdBy: string,
   totalValue: number = 1000,
-  startDate?: string
+  startDate?: string,
+  clientFirstName?: string,
+  clientLastName?: string,
+  clientCompany?: string,
+  clientWebsite?: string
 ): Promise<string> {
   const project = {
     name,
     description,
     clientEmail: clientEmail.toLowerCase(),
+    clientFirstName: clientFirstName || '',
+    clientLastName: clientLastName || '',
+    clientCompany: clientCompany || '',
+    clientWebsite: clientWebsite || '',
     createdBy,
     createdAt: new Date().toISOString(),
     startDate: startDate || new Date().toISOString().split('T')[0],
@@ -165,7 +187,7 @@ export async function addImprovement(
   const project = await getProjectById(projectId);
   if (!project) throw new Error('Project not found');
   
-  const improvements = [...(project.improvements || []), improvement];
+  const improvements = [...(project.improvements || []), improvement].map(removeUndefined);
   await updateDoc(doc(db, PROJECTS_COLLECTION, projectId), { improvements });
 }
 
@@ -179,7 +201,7 @@ export async function updateImprovement(
   
   const improvements = (project.improvements || []).map(imp => 
     imp.id === improvementId ? { ...imp, ...updates } : imp
-  );
+  ).map(removeUndefined);
   
   await updateDoc(doc(db, PROJECTS_COLLECTION, projectId), { improvements });
 }
@@ -191,7 +213,7 @@ export async function addTask(
   const project = await getProjectById(projectId);
   if (!project) throw new Error('Project not found');
   
-  const tasks = [...(project.tasks || []), task];
+  const tasks = [...(project.tasks || []), task].map(removeUndefined);
   await updateDoc(doc(db, PROJECTS_COLLECTION, projectId), { tasks });
 }
 
@@ -207,7 +229,7 @@ export async function updateTask(
     task.id === taskId 
       ? { ...task, ...updates }
       : task
-  );
+  ).map(removeUndefined);
   
   await updateDoc(doc(db, PROJECTS_COLLECTION, projectId), { tasks });
 }
@@ -219,7 +241,7 @@ export async function addMilestone(
   const project = await getProjectById(projectId);
   if (!project) throw new Error('Project not found');
   
-  const milestones = [...(project.milestones || []), milestone];
+  const milestones = [...(project.milestones || []), milestone].map(removeUndefined);
   await updateDoc(doc(db, PROJECTS_COLLECTION, projectId), { milestones });
 }
 
@@ -233,9 +255,25 @@ export async function updateMilestone(
   
   const milestones = (project.milestones || []).map(ms => 
     ms.id === milestoneId ? { ...ms, ...updates } : ms
-  );
+  ).map(removeUndefined);
   
   await updateDoc(doc(db, PROJECTS_COLLECTION, projectId), { milestones });
+}
+
+export async function completeImprovement(
+  projectId: string, 
+  improvementId: string
+): Promise<void> {
+  const project = await getProjectById(projectId);
+  if (!project) throw new Error('Project not found');
+  
+  const improvements = (project.improvements || []).map(imp => 
+    imp.id === improvementId 
+      ? { ...imp, completed: true, completedAt: new Date().toISOString() }
+      : imp
+  ).map(removeUndefined);
+  
+  await updateDoc(doc(db, PROJECTS_COLLECTION, projectId), { improvements });
 }
 
 export async function deleteMilestone(
@@ -245,6 +283,6 @@ export async function deleteMilestone(
   const project = await getProjectById(projectId);
   if (!project) throw new Error('Project not found');
   
-  const milestones = (project.milestones || []).filter(ms => ms.id !== milestoneId);
+  const milestones = (project.milestones || []).filter(ms => ms.id !== milestoneId).map(removeUndefined);
   await updateDoc(doc(db, PROJECTS_COLLECTION, projectId), { milestones });
 }
