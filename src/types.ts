@@ -43,6 +43,7 @@ export interface Project {
   milestones: Milestone[];
   totalEstimatedDays?: number;
   popupClosedAt?: string;
+  popupDelayDays?: number;
 }
 
 export interface Milestone {

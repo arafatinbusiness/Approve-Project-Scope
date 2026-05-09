@@ -208,6 +208,7 @@ export default function App() {
   const [editClientWebsite, setEditClientWebsite] = useState('');
   const [editTotalValue, setEditTotalValue] = useState('');
   const [editStartDate, setEditStartDate] = useState('');
+  const [editPopupDelayDays, setEditPopupDelayDays] = useState('1');
 
   // Milestone management state
   const [newMilestoneLabel, setNewMilestoneLabel] = useState('');
@@ -395,13 +396,15 @@ export default function App() {
       return;
     }
 
-    // Check 24-hour cooldown
+    // Check cooldown based on popupDelayDays (default 1 day)
+    const delayDays = selectedProject.popupDelayDays ?? 1;
     const popupClosedAt = selectedProject.popupClosedAt;
     if (popupClosedAt) {
       const closedTime = new Date(popupClosedAt).getTime();
       const now = Date.now();
       const hoursSinceClosed = (now - closedTime) / (1000 * 60 * 60);
-      if (hoursSinceClosed < 24) {
+      const requiredHours = delayDays * 24;
+      if (hoursSinceClosed < requiredHours) {
         setShowPaymentPopup(false);
         return;
       }
@@ -567,6 +570,7 @@ export default function App() {
     setEditClientWebsite(selectedProject.clientWebsite || '');
     setEditTotalValue(String(selectedProject.totalValue || 0));
     setEditStartDate(selectedProject.startDate || '');
+    setEditPopupDelayDays(String(selectedProject.popupDelayDays ?? 1));
     setShowEditForm(true);
   };
 
@@ -585,6 +589,7 @@ export default function App() {
         clientWebsite: editClientWebsite || '',
         totalValue: parseFloat(editTotalValue) || 0,
         startDate: editStartDate || undefined,
+        popupDelayDays: parseInt(editPopupDelayDays) || 1,
       };
       
       await updateProject(selectedProject.id, updates);
@@ -1318,6 +1323,22 @@ export default function App() {
                   value={editStartDate}
                   onChange={(e) => setEditStartDate(e.target.value)}
                 />
+              </div>
+              <div>
+                <label className="block text-[10px] uppercase tracking-[0.2em] text-agency-slate mb-2">
+                  Payment Reminder Frequency (days)
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  max="90"
+                  className="w-full bg-white border border-black/10 rounded-sm px-4 py-3 text-sm focus:outline-none focus:border-agency-green transition-colors"
+                  value={editPopupDelayDays}
+                  onChange={(e) => setEditPopupDelayDays(e.target.value)}
+                />
+                <p className="text-[9px] text-slate-400 mt-1 font-mono">
+                  How often the payment reminder popup appears for the client (default: 1 day)
+                </p>
               </div>
               <div className="flex gap-3">
                 <button
