@@ -44,6 +44,7 @@ export interface Project {
   totalEstimatedDays?: number;
   popupClosedAt?: string;
   popupDelayDays?: number;
+  lastLoginAt?: string;
 }
 
 export interface Milestone {

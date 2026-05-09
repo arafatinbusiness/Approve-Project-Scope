@@ -301,3 +301,10 @@ export async function updatePopupClosedAt(
   const docRef = doc(db, PROJECTS_COLLECTION, projectId);
   await updateDoc(docRef, { popupClosedAt: new Date().toISOString() });
 }
+
+export async function updateLastLoginAt(
+  projectId: string
+): Promise<void> {
+  const docRef = doc(db, PROJECTS_COLLECTION, projectId);
+  await updateDoc(docRef, { lastLoginAt: new Date().toISOString() });
+}

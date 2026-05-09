@@ -23,7 +23,8 @@ import {
   updateMilestone,
   deleteMilestone,
   updateTotalEstimatedDays,
-  updatePopupClosedAt
+  updatePopupClosedAt,
+  updateLastLoginAt
 } from './lib/projectService';
 import * as XLSX from 'xlsx';
 import { estimateTaskDays } from './lib/aiService';
@@ -372,6 +373,12 @@ export default function App() {
       if (project) {
         setSelectedProject(project);
         setCurrentView('project');
+        // If client is viewing, update last login timestamp
+        if (userRole === 'Client') {
+          updateLastLoginAt(projectId).catch(err => {
+            console.error('Error updating last login:', err);
+          });
+        }
       }
     } catch (err) {
       console.error('Error loading project:', err);
@@ -1000,6 +1007,11 @@ export default function App() {
                         {project.clientCompany && <span>{project.clientCompany}</span>}
                         <span>${project.totalValue?.toLocaleString()}</span>
                         <span>{formatDate(project.createdAt)}</span>
+                        {userRole === 'Agency' && project.lastLoginAt && (
+                          <span className="text-amber-600" title="Client last login">
+                            Last login: {formatDate(project.lastLoginAt)}
+                          </span>
+                        )}
                       </div>
                     </div>
                     <ChevronRight size={20} className="text-slate-200 group-hover:text-agency-black transition-colors" />
