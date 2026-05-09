@@ -424,7 +424,8 @@ export default function App() {
         const updatedImprovements = (prev.improvements || []).map(p =>
           p.id === newPoint.id ? { ...p, estimatedDays } : p
         );
-        const newTotal = updatedImprovements.reduce((sum, p) => sum + (p.estimatedDays || 0), 0);
+        // Exclude completed tasks from total estimate
+        const newTotal = updatedImprovements.reduce((sum, p) => sum + (p.completed ? 0 : (p.estimatedDays || 0)), 0);
         // Also update the total in Firestore
         updateTotalEstimatedDays(prev.id, newTotal).catch(err => {
           console.error('Error updating total estimate:', err);
@@ -461,7 +462,12 @@ export default function App() {
           }
           return p;
         });
-        return { ...prev, improvements: updatedImprovements };
+        // Recalculate total excluding completed tasks
+        const newTotal = updatedImprovements.reduce((sum, p) => sum + (p.completed ? 0 : (p.estimatedDays || 0)), 0);
+        updateTotalEstimatedDays(prev.id, newTotal).catch(err => {
+          console.error('Error updating total estimate:', err);
+        });
+        return { ...prev, improvements: updatedImprovements, totalEstimatedDays: newTotal };
       });
     } catch (err) {
       console.error('Error completing improvement:', err);
@@ -581,8 +587,8 @@ export default function App() {
         return p;
       });
       
-      // Calculate total
-      const totalDays = updatedImprovements.reduce((sum, p) => sum + (p.estimatedDays || 0), 0);
+      // Calculate total (exclude completed tasks)
+      const totalDays = updatedImprovements.reduce((sum, p) => sum + (p.completed ? 0 : (p.estimatedDays || 0)), 0);
       
       // Save to Firestore
       await updateTotalEstimatedDays(selectedProject.id, totalDays);
