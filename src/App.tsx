@@ -64,6 +64,18 @@ function formatDate(isoString: string): string {
   return `${months[d.getMonth()]} ${String(d.getDate()).padStart(2, '0')}, ${d.getFullYear()}`;
 }
 
+function formatDateTime(isoString: string): string {
+  if (!isoString) return 'N/A';
+  const d = new Date(isoString);
+  if (isNaN(d.getTime())) return 'N/A';
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const hours = d.getHours();
+  const minutes = String(d.getMinutes()).padStart(2, '0');
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  const hour12 = hours % 12 || 12;
+  return `${months[d.getMonth()]} ${String(d.getDate()).padStart(2, '0')}, ${d.getFullYear()} at ${hour12}:${minutes} ${ampm}`;
+}
+
 function getImprovementStatus(point: ImprovementPoint): string {
   const parts: string[] = [];
   parts.push(`"${point.title}"`);
@@ -1009,7 +1021,7 @@ export default function App() {
                         <span>{formatDate(project.createdAt)}</span>
                         {userRole === 'Agency' && project.lastLoginAt && (
                           <span className="text-amber-600" title="Client last login">
-                            Last login: {formatDate(project.lastLoginAt)}
+                            Last login: {formatDateTime(project.lastLoginAt)}
                           </span>
                         )}
                       </div>
