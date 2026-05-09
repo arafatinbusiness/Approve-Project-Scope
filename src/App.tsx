@@ -351,12 +351,9 @@ export default function App() {
     }
   };
 
-  // Sign up & forgot password state
-  const [showSignUpForm, setShowSignUpForm] = useState(false);
+  // Forgot password state
   const [showForgotPasswordForm, setShowForgotPasswordForm] = useState(false);
-  const [signUpEmail, setSignUpEmail] = useState('');
   const [forgotPasswordEmail, setForgotPasswordEmail] = useState('');
-  const [signUpSent, setSignUpSent] = useState(false);
   const [forgotPasswordSent, setForgotPasswordSent] = useState(false);
   const [isSendingLink, setIsSendingLink] = useState(false);
 
@@ -373,31 +370,6 @@ export default function App() {
     } catch (err) {
       console.error('isEmailRegistered error:', err);
       return false;
-    }
-  };
-
-  // Handle sign up (sends password reset link to create account)
-  const handleSignUp = async () => {
-    if (!signUpEmail) return;
-    setIsSendingLink(true);
-    setAuthError('');
-    try {
-      const registered = await isEmailRegistered(signUpEmail);
-      if (!registered) {
-        setAuthError('This email is not registered with any project. Please use the email your agency provided.');
-        setIsSendingLink(false);
-        return;
-      }
-      await sendPasswordResetEmail(auth, signUpEmail);
-      setSignUpSent(true);
-    } catch (error: any) {
-      if (error.code === 'auth/user-not-found') {
-        setAuthError('No account found with this email. Please use Google Sign-In to create your account first.');
-      } else {
-        setAuthError(`Failed to send sign up link: ${error.message || 'Please try again.'}`);
-      }
-    } finally {
-      setIsSendingLink(false);
     }
   };
 
@@ -911,71 +883,14 @@ export default function App() {
               Sign in with Google
             </button>
 
-            {/* Sign Up */}
-            {!showSignUpForm && !showForgotPasswordForm && (
-              <button
-                type="button"
-                onClick={() => { setShowSignUpForm(true); setAuthError(''); }}
-                className="w-full text-center text-[10px] font-bold uppercase tracking-widest text-slate-400 hover:text-agency-black transition-colors py-2"
-              >
-                Sign Up
-              </button>
-            )}
-
-            {showSignUpForm && (
-              <div className="border border-slate-200 rounded-sm p-4 space-y-3 bg-slate-50">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-[10px] font-black uppercase tracking-widest text-agency-black">Sign Up</h3>
-                  <button
-                    type="button"
-                    onClick={() => { setShowSignUpForm(false); setSignUpSent(false); setSignUpEmail(''); setAuthError(''); }}
-                    className="text-[10px] text-slate-400 hover:text-agency-black"
-                  >
-                    <X size={14} />
-                  </button>
-                </div>
-                {signUpSent ? (
-                  <div className="bg-emerald-50 border border-emerald-200 rounded-sm p-3">
-                    <p className="text-[11px] font-bold text-emerald-700 uppercase tracking-widest">
-                      ✅ Sign up link sent!
-                    </p>
-                    <p className="text-[10px] text-emerald-600 mt-1">
-                      Check your email. Click the link to set your password and create your account.
-                    </p>
-                  </div>
-                ) : (
-                  <>
-                    <input
-                      type="email"
-                      placeholder="your@email.com"
-                      className="w-full bg-white border border-black/10 rounded-sm px-3 py-2.5 text-xs focus:outline-none focus:border-agency-green transition-colors"
-                      value={signUpEmail}
-                      onChange={(e) => setSignUpEmail(e.target.value)}
-                    />
-                    <button
-                      type="button"
-                      onClick={handleSignUp}
-                      disabled={isSendingLink || !signUpEmail}
-                      className={cn(
-                        "w-full py-2.5 bg-agency-black text-white font-bold uppercase tracking-widest text-[10px] rounded-sm hover:bg-agency-green transition-all",
-                        (isSendingLink || !signUpEmail) && "opacity-50 cursor-not-allowed"
-                      )}
-                    >
-                      {isSendingLink ? 'Sending...' : 'Send Sign Up Link'}
-                    </button>
-                  </>
-                )}
-              </div>
-            )}
-
             {/* Forgot Password */}
-            {!showSignUpForm && !showForgotPasswordForm && (
+            {!showForgotPasswordForm && (
               <button
                 type="button"
                 onClick={() => { setShowForgotPasswordForm(true); setAuthError(''); }}
                 className="w-full text-center text-[10px] font-bold uppercase tracking-widest text-slate-400 hover:text-agency-black transition-colors py-1"
               >
-                Forgot Password?
+                Reset Password?
               </button>
             )}
 
