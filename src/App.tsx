@@ -8,7 +8,7 @@ import { ProposedImprovements } from './components/ProposedImprovements';
 import { Project, ImprovementPoint } from './types';
 import { cn } from './lib/utils';
 import { auth, db } from './lib/firebase';
-import { signInWithEmailAndPassword, signOut, onAuthStateChanged, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
+import { signInWithEmailAndPassword, signOut, onAuthStateChanged, GoogleAuthProvider, signInWithRedirect, getRedirectResult } from 'firebase/auth';
 import { 
   createProject, 
   getProjectsForClient, 
@@ -308,25 +308,33 @@ export default function App() {
     }
   };
 
-  const handleGoogleSignIn = async () => {
-    setIsLoggingIn(true);
-    setAuthError('');
-    try {
-      const provider = new GoogleAuthProvider();
-      const result = await signInWithPopup(auth, provider);
-      const userEmail = result.user.email;
-      if (userEmail) {
+  // Handle Google redirect result on page load
+  useEffect(() => {
+    getRedirectResult(auth).then(async (result) => {
+      if (result?.user?.email) {
+        const userEmail = result.user.email;
         const role = detectRole(userEmail);
         setUserRole(role);
         setIsAuthenticated(true);
         setCurrentView('dashboard');
         await loadProjects(userEmail, role);
       }
-    } catch (error: any) {
+    }).catch((error: any) => {
       if (error.code !== 'auth/popup-closed-by-user') {
-        setAuthError('Google sign-in failed. Please try again.');
+        console.error('Google redirect error:', error);
       }
-    } finally {
+    });
+  }, []);
+
+  const handleGoogleSignIn = async () => {
+    setIsLoggingIn(true);
+    setAuthError('');
+    try {
+      const provider = new GoogleAuthProvider();
+      await signInWithRedirect(auth, provider);
+      // The page will redirect to Google, then come back to getRedirectResult
+    } catch (error: any) {
+      setAuthError('Google sign-in failed. Please try again.');
       setIsLoggingIn(false);
     }
   };
