@@ -1418,10 +1418,11 @@ export default function App() {
                 {(() => {
                   const milestones = selectedProject.milestones || [];
                   const unpaidMilestones = milestones.filter(m => !m.completed);
-                  const hasRealMilestones = milestones.some(m => m.amount > 0);
+                  // Check if milestones are auto-generated defaults (ids like "ms-1", "ms-2", etc.)
+                  const isDefaultMilestones = milestones.length > 0 && milestones.every(m => /^ms-\d+$/.test(m.id));
                   
-                  // Show full payment if: no milestones, OR all unpaid milestones have $0 (defaults)
-                  if (milestones.length === 0 || !hasRealMilestones) {
+                  // Show full payment if: no milestones, OR all are auto-generated defaults
+                  if (milestones.length === 0 || isDefaultMilestones) {
                     return (
                       <div className="space-y-3">
                         <div className="text-lg font-black text-amber-900">
