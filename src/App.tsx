@@ -72,7 +72,7 @@ function buildCurrentWebsiteUpdates(improvements: ImprovementPoint[]): string {
   if (improvements.length === 0) return 'No agreements yet';
   return improvements.map((point, idx) => {
     return `${idx + 1}. ${getImprovementStatus(point)}`;
-  }).join('\n\n');
+  }).join('\n                    .\n');
 }
 
 function exportToExcel(project: Project) {
