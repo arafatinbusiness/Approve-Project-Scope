@@ -1418,9 +1418,10 @@ export default function App() {
                 {(() => {
                   const milestones = selectedProject.milestones || [];
                   const unpaidMilestones = milestones.filter(m => !m.completed);
+                  const hasRealMilestones = milestones.some(m => m.amount > 0);
                   
-                  if (milestones.length === 0) {
-                    // No milestones set — remind full payment
+                  // Show full payment if: no milestones, OR all unpaid milestones have $0 (defaults)
+                  if (milestones.length === 0 || !hasRealMilestones) {
                     return (
                       <div className="space-y-3">
                         <div className="text-lg font-black text-amber-900">
