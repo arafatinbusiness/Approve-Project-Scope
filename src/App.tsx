@@ -8,7 +8,7 @@ import { ProposedImprovements } from './components/ProposedImprovements';
 import { Project, ImprovementPoint } from './types';
 import { cn } from './lib/utils';
 import { auth, db } from './lib/firebase';
-import { signInWithEmailAndPassword, signOut, onAuthStateChanged, GoogleAuthProvider, signInWithRedirect, getRedirectResult } from 'firebase/auth';
+import { signInWithEmailAndPassword, signOut, onAuthStateChanged, GoogleAuthProvider, signInWithRedirect, getRedirectResult, sendPasswordResetEmail, sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink } from 'firebase/auth';
 import { 
   createProject, 
   getProjectsForClient, 
@@ -26,6 +26,7 @@ import {
   updatePopupClosedAt,
   updateLastLoginAt
 } from './lib/projectService';
+import { collection, query, where, getDocs } from 'firebase/firestore';
 import * as XLSX from 'xlsx';
 import { estimateTaskDays } from './lib/aiService';
 
@@ -349,6 +350,96 @@ export default function App() {
       setIsLoggingIn(false);
     }
   };
+
+  // Magic link & forgot password state
+  const [showMagicLinkForm, setShowMagicLinkForm] = useState(false);
+  const [showForgotPasswordForm, setShowForgotPasswordForm] = useState(false);
+  const [magicLinkEmail, setMagicLinkEmail] = useState('');
+  const [forgotPasswordEmail, setForgotPasswordEmail] = useState('');
+  const [magicLinkSent, setMagicLinkSent] = useState(false);
+  const [forgotPasswordSent, setForgotPasswordSent] = useState(false);
+  const [isSendingLink, setIsSendingLink] = useState(false);
+
+  // Check if email exists in any project (registered client/agency)
+  const isEmailRegistered = async (checkEmail: string): Promise<boolean> => {
+    try {
+      const lowerEmail = checkEmail.toLowerCase();
+      // Check if it's an agency email
+      if (AGENCY_EMAILS.includes(lowerEmail)) return true;
+      // Check if it exists in any project as clientEmail
+      const q = query(collection(db, 'projects'), where('clientEmail', '==', lowerEmail));
+      const snapshot = await getDocs(q);
+      return !snapshot.empty;
+    } catch {
+      return false;
+    }
+  };
+
+  // Handle magic link sign-in
+  const handleSendMagicLink = async () => {
+    if (!magicLinkEmail) return;
+    setIsSendingLink(true);
+    setAuthError('');
+    try {
+      const registered = await isEmailRegistered(magicLinkEmail);
+      if (!registered) {
+        setAuthError('This email is not registered with any project. Please use the email your agency provided.');
+        setIsSendingLink(false);
+        return;
+      }
+      const actionCodeSettings = {
+        url: window.location.origin + '/login',
+        handleCodeInApp: true,
+      };
+      await sendSignInLinkToEmail(auth, magicLinkEmail, actionCodeSettings);
+      window.localStorage.setItem('emailForSignIn', magicLinkEmail);
+      setMagicLinkSent(true);
+    } catch (error: any) {
+      setAuthError(`Failed to send magic link: ${error.message || 'Please try again.'}`);
+    } finally {
+      setIsSendingLink(false);
+    }
+  };
+
+  // Handle forgot password
+  const handleForgotPassword = async () => {
+    if (!forgotPasswordEmail) return;
+    setIsSendingLink(true);
+    setAuthError('');
+    try {
+      const registered = await isEmailRegistered(forgotPasswordEmail);
+      if (!registered) {
+        setAuthError('This email is not registered with any project. Please use the email your agency provided.');
+        setIsSendingLink(false);
+        return;
+      }
+      await sendPasswordResetEmail(auth, forgotPasswordEmail);
+      setForgotPasswordSent(true);
+    } catch (error: any) {
+      setAuthError(`Failed to send reset email: ${error.message || 'Please try again.'}`);
+    } finally {
+      setIsSendingLink(false);
+    }
+  };
+
+  // Handle magic link completion on page load
+  useEffect(() => {
+    if (isSignInWithEmailLink(auth, window.location.href)) {
+      let email = window.localStorage.getItem('emailForSignIn');
+      if (!email) {
+        email = window.prompt('Please provide your email for confirmation');
+      }
+      if (email) {
+        signInWithEmailLink(auth, email, window.location.href)
+          .then(() => {
+            window.localStorage.removeItem('emailForSignIn');
+          })
+          .catch((error: any) => {
+            setAuthError(`Magic link sign-in failed: ${error.message || 'Please try again.'}`);
+          });
+      }
+    }
+  }, []);
 
   const handleSignOut = async () => {
     await signOut(auth);
@@ -834,6 +925,120 @@ export default function App() {
               </svg>
               Sign in with Google
             </button>
+
+            {/* Magic Link Sign-In */}
+            {!showMagicLinkForm && !showForgotPasswordForm && (
+              <button
+                type="button"
+                onClick={() => { setShowMagicLinkForm(true); setAuthError(''); }}
+                className="w-full text-center text-[10px] font-bold uppercase tracking-widest text-slate-400 hover:text-agency-black transition-colors py-2"
+              >
+                Sign in with Email Link (No Password)
+              </button>
+            )}
+
+            {showMagicLinkForm && (
+              <div className="border border-slate-200 rounded-sm p-4 space-y-3 bg-slate-50">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-[10px] font-black uppercase tracking-widest text-agency-black">Email Magic Link</h3>
+                  <button
+                    type="button"
+                    onClick={() => { setShowMagicLinkForm(false); setMagicLinkSent(false); setMagicLinkEmail(''); setAuthError(''); }}
+                    className="text-[10px] text-slate-400 hover:text-agency-black"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+                {magicLinkSent ? (
+                  <div className="bg-emerald-50 border border-emerald-200 rounded-sm p-3">
+                    <p className="text-[11px] font-bold text-emerald-700 uppercase tracking-widest">
+                      ✅ Magic link sent!
+                    </p>
+                    <p className="text-[10px] text-emerald-600 mt-1">
+                      Check your email inbox. Click the link to sign in automatically.
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    <input
+                      type="email"
+                      placeholder="your@email.com"
+                      className="w-full bg-white border border-black/10 rounded-sm px-3 py-2.5 text-xs focus:outline-none focus:border-agency-green transition-colors"
+                      value={magicLinkEmail}
+                      onChange={(e) => setMagicLinkEmail(e.target.value)}
+                    />
+                    <button
+                      type="button"
+                      onClick={handleSendMagicLink}
+                      disabled={isSendingLink || !magicLinkEmail}
+                      className={cn(
+                        "w-full py-2.5 bg-agency-black text-white font-bold uppercase tracking-widest text-[10px] rounded-sm hover:bg-agency-green transition-all",
+                        (isSendingLink || !magicLinkEmail) && "opacity-50 cursor-not-allowed"
+                      )}
+                    >
+                      {isSendingLink ? 'Sending...' : 'Send Magic Link'}
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* Forgot Password */}
+            {!showMagicLinkForm && !showForgotPasswordForm && (
+              <button
+                type="button"
+                onClick={() => { setShowForgotPasswordForm(true); setAuthError(''); }}
+                className="w-full text-center text-[10px] font-bold uppercase tracking-widest text-slate-400 hover:text-agency-black transition-colors py-1"
+              >
+                Forgot Password?
+              </button>
+            )}
+
+            {showForgotPasswordForm && (
+              <div className="border border-slate-200 rounded-sm p-4 space-y-3 bg-slate-50">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-[10px] font-black uppercase tracking-widest text-agency-black">Reset Password</h3>
+                  <button
+                    type="button"
+                    onClick={() => { setShowForgotPasswordForm(false); setForgotPasswordSent(false); setForgotPasswordEmail(''); setAuthError(''); }}
+                    className="text-[10px] text-slate-400 hover:text-agency-black"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+                {forgotPasswordSent ? (
+                  <div className="bg-emerald-50 border border-emerald-200 rounded-sm p-3">
+                    <p className="text-[11px] font-bold text-emerald-700 uppercase tracking-widest">
+                      ✅ Reset email sent!
+                    </p>
+                    <p className="text-[10px] text-emerald-600 mt-1">
+                      Check your email for the password reset link.
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    <input
+                      type="email"
+                      placeholder="your@email.com"
+                      className="w-full bg-white border border-black/10 rounded-sm px-3 py-2.5 text-xs focus:outline-none focus:border-agency-green transition-colors"
+                      value={forgotPasswordEmail}
+                      onChange={(e) => setForgotPasswordEmail(e.target.value)}
+                    />
+                    <button
+                      type="button"
+                      onClick={handleForgotPassword}
+                      disabled={isSendingLink || !forgotPasswordEmail}
+                      className={cn(
+                        "w-full py-2.5 bg-amber-600 text-white font-bold uppercase tracking-widest text-[10px] rounded-sm hover:bg-amber-700 transition-all",
+                        (isSendingLink || !forgotPasswordEmail) && "opacity-50 cursor-not-allowed"
+                      )}
+                    >
+                      {isSendingLink ? 'Sending...' : 'Send Reset Link'}
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
 
             <p className="text-center text-[10px] text-agency-slate leading-relaxed">
               Proprietary access for Labinitial clients only.<br />
