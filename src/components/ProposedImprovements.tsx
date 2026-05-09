@@ -1,7 +1,9 @@
-import { Plus, User, Shield, Check, X, AlertCircle, Image, ExternalLink, CheckCircle, Calendar } from 'lucide-react';
+import { Plus, User, Shield, Check, X, AlertCircle, Image, ExternalLink, CheckCircle, Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useState } from 'react';
 import { ImprovementPoint } from '../types';
 import { cn } from '../lib/utils';
+
+const ITEMS_PER_PAGE = 50;
 
 interface ProposedImprovementsProps {
   improvements: ImprovementPoint[];
@@ -12,7 +14,9 @@ interface ProposedImprovementsProps {
 }
 
 function formatDate(isoString: string): string {
+  if (!isoString) return 'N/A';
   const d = new Date(isoString);
+  if (isNaN(d.getTime())) return 'N/A';
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   return `${months[d.getMonth()]} ${String(d.getDate()).padStart(2, '0')}, ${d.getFullYear()}`;
 }
@@ -23,6 +27,13 @@ export function ProposedImprovements({ improvements, onAddPoint, onApprove, onCo
   const [newDesc, setNewDesc] = useState('');
   const [newImageUrl, setNewImageUrl] = useState('');
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+
+  const totalPages = Math.max(1, Math.ceil(improvements.length / ITEMS_PER_PAGE));
+  const paginatedImprovements = improvements.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  );
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -142,7 +153,7 @@ export function ProposedImprovements({ improvements, onAddPoint, onApprove, onCo
           </div>
         )}
 
-        {improvements.map((point) => {
+        {paginatedImprovements.map((point) => {
           const isConfirmed = point.agencyApproved && point.clientApproved;
           
           return (
@@ -286,6 +297,59 @@ export function ProposedImprovements({ improvements, onAddPoint, onApprove, onCo
           );
         })}
       </div>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between border-t border-slate-200 pt-4">
+          <div className="text-[10px] font-mono text-slate-400">
+            Showing {(currentPage - 1) * ITEMS_PER_PAGE + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, improvements.length)} of {improvements.length} agreements
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              className={cn(
+                "flex items-center gap-1 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest rounded-sm transition-all",
+                currentPage === 1
+                  ? "text-slate-300 cursor-not-allowed"
+                  : "text-slate-500 hover:text-agency-black hover:bg-slate-100"
+              )}
+            >
+              <ChevronLeft size={12} />
+              Prev
+            </button>
+            <div className="flex items-center gap-1">
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                <button
+                  key={page}
+                  onClick={() => setCurrentPage(page)}
+                  className={cn(
+                    "w-7 h-7 text-[10px] font-black rounded-sm transition-all",
+                    page === currentPage
+                      ? "bg-agency-black text-white"
+                      : "text-slate-400 hover:text-agency-black hover:bg-slate-100"
+                  )}
+                >
+                  {page}
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+              className={cn(
+                "flex items-center gap-1 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest rounded-sm transition-all",
+                currentPage === totalPages
+                  ? "text-slate-300 cursor-not-allowed"
+                  : "text-slate-500 hover:text-agency-black hover:bg-slate-100"
+              )}
+            >
+              Next
+              <ChevronRight size={12} />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
