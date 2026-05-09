@@ -239,6 +239,8 @@ export default function App() {
 
   // Payment reminder popup state
   const [showPaymentPopup, setShowPaymentPopup] = useState(false);
+  // Completion celebration popup state
+  const [showCompletionPopup, setShowCompletionPopup] = useState(false);
 
   // Listen for auth state changes
   useEffect(() => {
@@ -433,6 +435,28 @@ export default function App() {
     setShowPaymentPopup(true);
   }, [selectedProject?.id, userRole]);
 
+  // Check if all tasks are completed — show celebration popup
+  useEffect(() => {
+    if (!selectedProject) {
+      setShowCompletionPopup(false);
+      return;
+    }
+    const improvements = selectedProject.improvements || [];
+    const allDone = improvements.length > 0 && improvements.every(i => i.completed);
+    if (allDone) {
+      setShowCompletionPopup(true);
+      // Fire confetti for celebration
+      confetti({
+        particleCount: 200,
+        spread: 100,
+        origin: { y: 0.5 },
+        colors: ['#10b981', '#f59e0b', '#3b82f6', '#8b5cf6', '#ef4444']
+      });
+    } else {
+      setShowCompletionPopup(false);
+    }
+  }, [selectedProject?.improvements]);
+
   const handleClosePaymentPopup = async () => {
     if (!selectedProject) return;
     setShowPaymentPopup(false);
@@ -440,6 +464,10 @@ export default function App() {
     await updatePopupClosedAt(selectedProject.id);
     // Update local state
     setSelectedProject(prev => prev ? { ...prev, popupClosedAt: new Date().toISOString() } : null);
+  };
+
+  const handleCloseCompletionPopup = () => {
+    setShowCompletionPopup(false);
   };
 
   const handleBackToDashboard = () => {
@@ -1439,6 +1467,102 @@ export default function App() {
           userRole={userRole}
         />
       </main>
+
+      {/* Completion Celebration Popup */}
+      {showCompletionPopup && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white border-2 border-emerald-300 rounded-sm shadow-2xl max-w-md w-full mx-4 animate-in fade-in zoom-in-95">
+            <div className="p-6 space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-emerald-100 rounded-full flex items-center justify-center">
+                  <CheckCircle2 size={20} className="text-emerald-600" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black uppercase tracking-widest text-emerald-800">
+                    All Tasks Completed! 🎉
+                  </h3>
+                  <p className="text-[10px] font-mono text-emerald-500">
+                    {selectedProject.name}
+                  </p>
+                </div>
+              </div>
+
+              <div className="border-t border-emerald-100 pt-4 space-y-4">
+                <p className="text-xs text-slate-600 font-bold leading-relaxed">
+                  Great work! All {selectedProject.improvements?.length || 0} tasks have been marked as done. 
+                  Your project is progressing well.
+                </p>
+
+                {/* Payment reminder section */}
+                {(() => {
+                  const milestones = selectedProject.milestones || [];
+                  const isDefaultMilestones = milestones.length > 0 && milestones.every(m => /^ms-\d+$/.test(m.id));
+                  const allPaid = milestones.length > 0 && milestones.every(m => m.completed);
+                  const hasAnyPayment = milestones.some(m => m.completed);
+
+                  if (allPaid) {
+                    return (
+                      <div className="bg-emerald-50 border border-emerald-200 rounded-sm p-4">
+                        <p className="text-[11px] font-black text-emerald-700 uppercase tracking-widest">
+                          ✅ All payments completed
+                        </p>
+                      </div>
+                    );
+                  }
+
+                  if (milestones.length === 0 || isDefaultMilestones) {
+                    return (
+                      <div className="bg-amber-50 border border-amber-200 rounded-sm p-4 space-y-2">
+                        <p className="text-[11px] font-black text-amber-700 uppercase tracking-widest">
+                          💰 Payment Reminder
+                        </p>
+                        <p className="text-xs text-slate-600 font-bold">
+                          Full project value of <span className="text-agency-black">${selectedProject.totalValue?.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span> is due. No payment has been made yet.
+                        </p>
+                      </div>
+                    );
+                  }
+
+                  const unpaidMilestones = milestones.filter(m => !m.completed);
+                  if (unpaidMilestones.length > 0) {
+                    return (
+                      <div className="bg-amber-50 border border-amber-200 rounded-sm p-4 space-y-2">
+                        <p className="text-[11px] font-black text-amber-700 uppercase tracking-widest">
+                          💰 Payment Reminder
+                        </p>
+                        <p className="text-xs text-slate-600 font-bold">
+                          {unpaidMilestones.length} milestone{unpaidMilestones.length > 1 ? 's' : ''} still unpaid. 
+                          Next: <span className="text-agency-black">{unpaidMilestones[0].label}</span> — 
+                          ${unpaidMilestones[0].amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                        </p>
+                      </div>
+                    );
+                  }
+
+                  return null;
+                })()}
+
+                <div className="bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-sm p-4">
+                  <p className="text-[11px] font-black text-purple-700 uppercase tracking-widest mb-1">
+                    🚀 Ready for more?
+                  </p>
+                  <p className="text-xs text-slate-600 font-bold leading-relaxed">
+                    Let us know if you have any new features or improvements in mind. 
+                    We're here to help your business grow further!
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={handleCloseCompletionPopup}
+                className="w-full py-3 bg-emerald-600 text-white text-xs font-black uppercase tracking-widest rounded-sm hover:bg-emerald-700 transition-all"
+              >
+                Awesome, thanks!
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Payment Reminder Popup */}
       {showPaymentPopup && (
