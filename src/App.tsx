@@ -1131,7 +1131,6 @@ export default function App() {
                     {(() => {
                       const totalDays = selectedProject.totalEstimatedDays!;
                       const totalHours = totalDays * 8;
-                      // Show in hours if less than 1 day, otherwise show days
                       const display = totalDays < 1
                         ? `${Math.round(totalHours)} hour${Math.round(totalHours) > 1 ? 's' : ''}`
                         : `${totalDays.toFixed(1)} working day${totalDays > 1 ? 's' : ''}`;
@@ -1141,16 +1140,9 @@ export default function App() {
                         </div>
                       );
                     })()}
-                    {selectedProject.startDate && (
-                      <div className="text-xs font-mono text-amber-700">
-                        Est. completion:{' '}
-                        {(() => {
-                          const start = new Date(selectedProject.startDate!);
-                          const estEnd = new Date(start.getTime() + selectedProject.totalEstimatedDays! * 24 * 60 * 60 * 1000);
-                          return formatDate(estEnd.toISOString());
-                        })()}
-                      </div>
-                    )}
+                    <div className="text-[11px] font-bold text-amber-700">
+                      No sleep, no breaks, no rest — pure active work only
+                    </div>
                     <div className="text-[10px] font-mono text-amber-500">
                       Based on {improvements.length} agreement{improvements.length > 1 ? 's' : ''}
                     </div>
