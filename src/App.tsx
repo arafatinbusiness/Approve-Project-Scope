@@ -308,20 +308,31 @@ export default function App() {
     }
   };
 
-  // Handle Google redirect result on page load
+  // Handle Google redirect result on page load — only used to catch errors
+  // The actual auth state is handled by onAuthStateChanged above
   useEffect(() => {
-    getRedirectResult(auth).then(async (result) => {
-      if (result?.user?.email) {
-        const userEmail = result.user.email;
-        const role = detectRole(userEmail);
-        setUserRole(role);
-        setIsAuthenticated(true);
-        setCurrentView('dashboard');
-        await loadProjects(userEmail, role);
+    getRedirectResult(auth).then((result) => {
+      if (result) {
+        // User signed in via redirect — onAuthStateChanged will handle it
+        console.log('Google redirect successful for:', result.user?.email);
       }
     }).catch((error: any) => {
-      if (error.code !== 'auth/popup-closed-by-user') {
-        console.error('Google redirect error:', error);
+      console.error('Google redirect error full details:', error.code, error.message, error);
+      // Show the actual error on screen so user can see it on mobile
+      if (error.code === 'auth/credential-already-in-use') {
+        setAuthError('This Google account is already linked to another account.');
+      } else if (error.code === 'auth/account-exists-with-different-credential') {
+        setAuthError('An account already exists with this email. Please sign in with email/password.');
+      } else if (error.code === 'auth/popup-closed-by-user') {
+        // User closed the popup, do nothing
+      } else if (error.code === 'auth/web-storage-unsupported') {
+        setAuthError('Your browser does not support web storage. Please use a different browser or sign in with email/password.');
+      } else if (error.code === 'auth/unauthorized-domain') {
+        setAuthError('This domain is not authorized for Google sign-in. Please contact support.');
+      } else if (error.code === 'auth/cancelled-popup-request') {
+        // Only one popup request at a time, ignore
+      } else {
+        setAuthError(`Google sign-in error: ${error.code || 'unknown'} — ${error.message || 'Please try again or use email/password.'}`);
       }
     });
   }, []);
@@ -334,7 +345,7 @@ export default function App() {
       await signInWithRedirect(auth, provider);
       // The page will redirect to Google, then come back to getRedirectResult
     } catch (error: any) {
-      setAuthError('Google sign-in failed. Please try again.');
+      setAuthError(`Google sign-in failed: ${error.code || 'unknown'} — ${error.message || 'Please try again.'}`);
       setIsLoggingIn(false);
     }
   };
