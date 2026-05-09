@@ -42,6 +42,7 @@ export interface Project {
   improvements: ImprovementPoint[];
   milestones: Milestone[];
   totalEstimatedDays?: number;
+  popupClosedAt?: string;
 }
 
 export interface Milestone {

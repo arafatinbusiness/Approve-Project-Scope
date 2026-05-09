@@ -294,3 +294,10 @@ export async function updateTotalEstimatedDays(
   const docRef = doc(db, PROJECTS_COLLECTION, projectId);
   await updateDoc(docRef, { totalEstimatedDays: totalDays });
 }
+
+export async function updatePopupClosedAt(
+  projectId: string
+): Promise<void> {
+  const docRef = doc(db, PROJECTS_COLLECTION, projectId);
+  await updateDoc(docRef, { popupClosedAt: new Date().toISOString() });
+}

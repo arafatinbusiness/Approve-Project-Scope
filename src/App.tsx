@@ -22,7 +22,8 @@ import {
   addMilestone,
   updateMilestone,
   deleteMilestone,
-  updateTotalEstimatedDays
+  updateTotalEstimatedDays,
+  updatePopupClosedAt
 } from './lib/projectService';
 import * as XLSX from 'xlsx';
 import { estimateTaskDays } from './lib/aiService';
@@ -222,6 +223,9 @@ export default function App() {
   const [exportDateFrom, setExportDateFrom] = useState('');
   const [exportDateTo, setExportDateTo] = useState('');
 
+  // Payment reminder popup state
+  const [showPaymentPopup, setShowPaymentPopup] = useState(false);
+
   // Listen for auth state changes
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -373,6 +377,47 @@ export default function App() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // Check if payment reminder popup should show (once per 24 hours)
+  useEffect(() => {
+    if (!selectedProject || userRole !== 'Client') {
+      setShowPaymentPopup(false);
+      return;
+    }
+
+    const milestones = selectedProject.milestones || [];
+    const allPaid = milestones.length > 0 && milestones.every(m => m.completed);
+    
+    // If all milestones are paid (or no milestones but nothing is due), don't show
+    if (allPaid) {
+      setShowPaymentPopup(false);
+      return;
+    }
+
+    // Check 24-hour cooldown
+    const popupClosedAt = selectedProject.popupClosedAt;
+    if (popupClosedAt) {
+      const closedTime = new Date(popupClosedAt).getTime();
+      const now = Date.now();
+      const hoursSinceClosed = (now - closedTime) / (1000 * 60 * 60);
+      if (hoursSinceClosed < 24) {
+        setShowPaymentPopup(false);
+        return;
+      }
+    }
+
+    // Show the popup
+    setShowPaymentPopup(true);
+  }, [selectedProject?.id, userRole]);
+
+  const handleClosePaymentPopup = async () => {
+    if (!selectedProject) return;
+    setShowPaymentPopup(false);
+    // Store the close timestamp in Firestore
+    await updatePopupClosedAt(selectedProject.id);
+    // Update local state
+    setSelectedProject(prev => prev ? { ...prev, popupClosedAt: new Date().toISOString() } : null);
   };
 
   const handleBackToDashboard = () => {
@@ -1349,6 +1394,102 @@ export default function App() {
           userRole={userRole}
         />
       </main>
+
+      {/* Payment Reminder Popup */}
+      {showPaymentPopup && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white border-2 border-amber-300 rounded-sm shadow-2xl max-w-md w-full mx-4 animate-in fade-in zoom-in-95">
+            <div className="p-6 space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center">
+                  <Clock size={20} className="text-amber-600" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black uppercase tracking-widest text-amber-800">
+                    Payment Reminder
+                  </h3>
+                  <p className="text-[10px] font-mono text-amber-500">
+                    {selectedProject.name}
+                  </p>
+                </div>
+              </div>
+
+              <div className="border-t border-amber-100 pt-4">
+                {(() => {
+                  const milestones = selectedProject.milestones || [];
+                  const unpaidMilestones = milestones.filter(m => !m.completed);
+                  
+                  if (milestones.length === 0) {
+                    // No milestones set — remind full payment
+                    return (
+                      <div className="space-y-3">
+                        <div className="text-lg font-black text-amber-900">
+                          Full Payment Due
+                        </div>
+                        <div className="text-3xl font-black text-agency-black">
+                          ${selectedProject.totalValue?.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                        </div>
+                        <p className="text-xs text-slate-600 font-bold leading-relaxed">
+                          No payment plan has been set up for this project yet. Please arrange the full payment at your earliest convenience.
+                        </p>
+                      </div>
+                    );
+                  }
+
+                  // Show next unpaid milestone
+                  const nextMilestone = unpaidMilestones[0];
+                  const paidCount = milestones.filter(m => m.completed).length;
+                  
+                  return (
+                    <div className="space-y-3">
+                      <div className="text-lg font-black text-amber-900">
+                        Upcoming Payment
+                      </div>
+                      <div className="bg-amber-50 border border-amber-200 rounded-sm p-4 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-black uppercase tracking-widest text-slate-500">
+                            {nextMilestone.label}
+                          </span>
+                          <span className="text-lg font-black text-agency-black">
+                            ${nextMilestone.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                          </span>
+                        </div>
+                        <div className="text-[10px] font-mono text-amber-600">
+                          Due: {nextMilestone.date}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 text-[10px] text-slate-400 font-mono">
+                        <span>Progress:</span>
+                        <div className="flex items-center gap-1">
+                          {milestones.map((m, i) => (
+                            <div
+                              key={i}
+                              className={cn(
+                                "w-3 h-3 rounded-full border",
+                                m.completed
+                                  ? "bg-emerald-500 border-emerald-500"
+                                  : "bg-slate-100 border-slate-200"
+                              )}
+                            />
+                          ))}
+                        </div>
+                        <span>{paidCount} of {milestones.length} paid</span>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+
+              <button
+                onClick={handleClosePaymentPopup}
+                className="w-full py-3 bg-amber-600 text-white text-xs font-black uppercase tracking-widest rounded-sm hover:bg-amber-700 transition-all"
+              >
+                Got it
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
