@@ -286,3 +286,11 @@ export async function deleteMilestone(
   const milestones = (project.milestones || []).filter(ms => ms.id !== milestoneId).map(removeUndefined);
   await updateDoc(doc(db, PROJECTS_COLLECTION, projectId), { milestones });
 }
+
+export async function updateTotalEstimatedDays(
+  projectId: string,
+  totalDays: number
+): Promise<void> {
+  const docRef = doc(db, PROJECTS_COLLECTION, projectId);
+  await updateDoc(docRef, { totalEstimatedDays: totalDays });
+}

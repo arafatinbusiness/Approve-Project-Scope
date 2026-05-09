@@ -21,9 +21,11 @@ import {
   completeImprovement,
   addMilestone,
   updateMilestone,
-  deleteMilestone
+  deleteMilestone,
+  updateTotalEstimatedDays
 } from './lib/projectService';
 import * as XLSX from 'xlsx';
+import { estimateTaskDays } from './lib/aiService';
 
 const AGENCY_EMAILS = [
   'support@labinitial.com',
@@ -38,6 +40,19 @@ function detectRole(email: string): 'Agency' | 'Client' {
 }
 
 type View = 'login' | 'dashboard' | 'project';
+
+function formatEstimate(days: number): string {
+  if (!days || days <= 0) return '';
+  const totalMinutes = Math.round(days * 8 * 60);
+  if (totalMinutes < 60) return `${totalMinutes} min`;
+  const hours = Math.floor(totalMinutes / 60);
+  const mins = totalMinutes % 60;
+  if (hours < 8) {
+    return mins > 0 ? `${hours}h ${mins}m` : `${hours} hour${hours > 1 ? 's' : ''}`;
+  }
+  const d = days;
+  return `${d.toFixed(1)} day${d > 1 ? 's' : ''}`;
+}
 
 function formatDate(isoString: string): string {
   if (!isoString) return 'N/A';
@@ -65,6 +80,9 @@ function getImprovementStatus(point: ImprovementPoint): string {
     parts.push('Not Completed');
   }
   parts.push(`Created: ${formatDate(point.createdAt)}`);
+  if (point.estimatedDays) {
+    parts.push(`Est: ${formatEstimate(point.estimatedDays)}`);
+  }
   return parts.join(' | ');
 }
 
@@ -393,6 +411,32 @@ export default function App() {
       createdAt: new Date().toISOString(),
     };
 
+    // AI estimate the task duration
+    estimateTaskDays(title, description).then(estimatedDays => {
+      newPoint.estimatedDays = estimatedDays;
+      // Update Firestore with the estimate
+      updateImprovement(selectedProject.id, newPoint.id, { estimatedDays }).catch(err => {
+        console.error('Error updating estimate:', err);
+      });
+      // Update local state and recalculate total
+      setSelectedProject(prev => {
+        if (!prev) return null;
+        const updatedImprovements = (prev.improvements || []).map(p =>
+          p.id === newPoint.id ? { ...p, estimatedDays } : p
+        );
+        const newTotal = updatedImprovements.reduce((sum, p) => sum + (p.estimatedDays || 0), 0);
+        // Also update the total in Firestore
+        updateTotalEstimatedDays(prev.id, newTotal).catch(err => {
+          console.error('Error updating total estimate:', err);
+        });
+        return {
+          ...prev,
+          improvements: updatedImprovements,
+          totalEstimatedDays: newTotal
+        };
+      });
+    });
+
     try {
       await addImprovement(selectedProject.id, newPoint);
       setSelectedProject(prev => prev ? {
@@ -511,6 +555,56 @@ export default function App() {
     setShowExportFilter(false);
     setExportDateFrom('');
     setExportDateTo('');
+  };
+
+  const [isEstimating, setIsEstimating] = useState(false);
+
+  const handleGenerateEstimate = async () => {
+    if (!selectedProject) return;
+    setIsEstimating(true);
+    try {
+      const improvements = selectedProject.improvements || [];
+      // Find tasks that don't have estimates yet
+      const unestimated = improvements.filter(p => !p.estimatedDays);
+      
+      // Estimate all unestimated tasks in parallel
+      const estimates = await Promise.all(
+        unestimated.map(p => estimateTaskDays(p.title, p.description))
+      );
+      
+      // Update each task with its estimate
+      const updatedImprovements = improvements.map(p => {
+        if (!p.estimatedDays) {
+          const idx = unestimated.indexOf(p);
+          return { ...p, estimatedDays: estimates[idx] };
+        }
+        return p;
+      });
+      
+      // Calculate total
+      const totalDays = updatedImprovements.reduce((sum, p) => sum + (p.estimatedDays || 0), 0);
+      
+      // Save to Firestore
+      await updateTotalEstimatedDays(selectedProject.id, totalDays);
+      
+      // Update all unestimated tasks in Firestore
+      await Promise.all(
+        unestimated.map((p, idx) => 
+          updateImprovement(selectedProject.id, p.id, { estimatedDays: estimates[idx] })
+        )
+      );
+      
+      // Update local state
+      setSelectedProject(prev => prev ? {
+        ...prev,
+        improvements: updatedImprovements,
+        totalEstimatedDays: totalDays
+      } : null);
+    } catch (err) {
+      console.error('Error generating estimate:', err);
+    } finally {
+      setIsEstimating(false);
+    }
   };
 
   // Login View
@@ -1018,6 +1112,71 @@ export default function App() {
                 Approve Project
               </button>
             )}
+          </div>
+        </div>
+
+        {/* AI Estimated Completion Board */}
+        <div className="bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-300 rounded-sm p-6 shadow-sm">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-amber-100 rounded-full flex items-center justify-center">
+                <Clock size={24} className="text-amber-600" />
+              </div>
+              <div>
+                <div className="text-[10px] uppercase tracking-[0.2em] text-amber-700 font-black mb-1">
+                  AI Estimated Completion
+                </div>
+                {selectedProject.totalEstimatedDays ? (
+                  <div className="space-y-1">
+                    {(() => {
+                      const totalDays = selectedProject.totalEstimatedDays!;
+                      const totalHours = totalDays * 8;
+                      // Show in hours if less than 1 day, otherwise show days
+                      const display = totalDays < 1
+                        ? `${Math.round(totalHours)} hour${Math.round(totalHours) > 1 ? 's' : ''}`
+                        : `${totalDays.toFixed(1)} working day${totalDays > 1 ? 's' : ''}`;
+                      return (
+                        <div className="text-2xl font-black text-amber-900">
+                          {display}
+                        </div>
+                      );
+                    })()}
+                    {selectedProject.startDate && (
+                      <div className="text-xs font-mono text-amber-700">
+                        Est. completion:{' '}
+                        {(() => {
+                          const start = new Date(selectedProject.startDate!);
+                          const estEnd = new Date(start.getTime() + selectedProject.totalEstimatedDays! * 24 * 60 * 60 * 1000);
+                          return formatDate(estEnd.toISOString());
+                        })()}
+                      </div>
+                    )}
+                    <div className="text-[10px] font-mono text-amber-500">
+                      Based on {improvements.length} agreement{improvements.length > 1 ? 's' : ''}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-sm text-amber-700 font-bold">
+                    {improvements.length === 0 
+                      ? 'No agreements to estimate yet'
+                      : 'Click "Generate Estimate" to calculate'}
+                  </div>
+                )}
+              </div>
+            </div>
+            <button
+              onClick={handleGenerateEstimate}
+              disabled={isEstimating || improvements.length === 0}
+              className={cn(
+                "flex items-center gap-2 px-5 py-3 rounded-sm font-bold uppercase tracking-widest text-xs transition-all",
+                isEstimating || improvements.length === 0
+                  ? "bg-amber-200 text-amber-400 cursor-not-allowed"
+                  : "bg-amber-600 text-white hover:bg-amber-700 shadow-lg shadow-amber-600/20"
+              )}
+            >
+              <Clock size={14} className={isEstimating ? "animate-spin" : ""} />
+              {isEstimating ? 'Estimating...' : selectedProject.totalEstimatedDays ? 'Re-Generate' : 'Generate Estimate'}
+            </button>
           </div>
         </div>
 

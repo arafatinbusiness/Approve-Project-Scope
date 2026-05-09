@@ -20,6 +20,7 @@ export interface ImprovementPoint {
   completed: boolean;
   completedAt?: string;
   createdAt: string;
+  estimatedDays?: number;
 }
 
 export interface Project {
@@ -40,6 +41,7 @@ export interface Project {
   tasks: ProjectTask[];
   improvements: ImprovementPoint[];
   milestones: Milestone[];
+  totalEstimatedDays?: number;
 }
 
 export interface Milestone {

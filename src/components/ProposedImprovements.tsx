@@ -1,4 +1,4 @@
-import { Plus, User, Shield, Check, X, AlertCircle, Image, ExternalLink, CheckCircle, Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, User, Shield, Check, X, AlertCircle, Image, ExternalLink, CheckCircle, Calendar, ChevronLeft, ChevronRight, Clock } from 'lucide-react';
 import { useState } from 'react';
 import { ImprovementPoint } from '../types';
 import { cn } from '../lib/utils';
@@ -186,12 +186,28 @@ export function ProposedImprovements({ improvements, onAddPoint, onApprove, onCo
                   <p className="text-xs text-slate-500 font-bold leading-relaxed pr-8">
                     {point.description}
                   </p>
-                  {point.createdAt && (
-                    <div className="flex items-center gap-1.5 text-[10px] text-slate-400 font-mono">
-                      <Calendar size={11} />
-                      <span>Created {formatDate(point.createdAt)}</span>
-                    </div>
-                  )}
+                  <div className="flex items-center gap-3 text-[10px] text-slate-400 font-mono">
+                    {point.createdAt && (
+                      <div className="flex items-center gap-1.5">
+                        <Calendar size={11} />
+                        <span>Created {formatDate(point.createdAt)}</span>
+                      </div>
+                    )}
+                    {point.estimatedDays && (
+                      <div className="flex items-center gap-1.5 text-amber-600">
+                        <Clock size={11} />
+                        <span className="font-bold">Est. {(() => {
+                          const d = point.estimatedDays!;
+                          const totalMinutes = Math.round(d * 8 * 60);
+                          if (totalMinutes < 60) return `${totalMinutes} min to implement or fix`;
+                          const hours = Math.floor(totalMinutes / 60);
+                          const mins = totalMinutes % 60;
+                          if (hours < 8) return mins > 0 ? `${hours}h ${mins}m to implement or fix` : `${hours} hour${hours > 1 ? 's' : ''} to implement or fix`;
+                          return `${d.toFixed(1)} day${d > 1 ? 's' : ''} to implement or fix`;
+                        })()}</span>
+                      </div>
+                    )}
+                  </div>
                   {point.imageUrl && (
                     <div className="mt-3">
                       <a 
