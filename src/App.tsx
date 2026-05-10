@@ -29,6 +29,7 @@ import {
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import * as XLSX from 'xlsx';
 import { estimateTaskDays } from './lib/aiService';
+import { createClientAuthUser } from './lib/authService';
 
 const AGENCY_EMAILS = [
   'support@labinitial.com',
@@ -428,6 +429,22 @@ export default function App() {
         newClientCompany || undefined,
         newClientWebsite || undefined
       );
+
+      // Create the client user in Firebase Authentication
+      // This allows the client to sign in with their email
+      const authResult = await createClientAuthUser(
+        newClientEmail,
+        newClientFirstName,
+        newClientLastName
+      );
+      if (authResult.error) {
+        console.warn('Could not create auth user (may already exist):', authResult.error);
+      } else if (authResult.alreadyExisted) {
+        console.log('Client auth user already exists:', newClientEmail);
+      } else {
+        console.log('Client auth user created successfully:', newClientEmail);
+      }
+
       const updatedProjects = await getProjectsForAgency(email);
       setProjects(updatedProjects);
       setShowCreateForm(false);
