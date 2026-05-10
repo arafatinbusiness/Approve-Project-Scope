@@ -42,8 +42,10 @@ service cloud.firestore {
         resource.data.clientEmail == request.auth.token.email;
       
       // Agency can update their own projects
-      allow update: if isAgency() && 
-        resource.data.createdBy == request.auth.token.email;
+      // Client can update projects assigned to them (e.g., add improvements, approve)
+      allow update: if (isAgency() && 
+        resource.data.createdBy == request.auth.token.email) ||
+        (resource.data.clientEmail == request.auth.token.email);
       
       // Only agency can delete
       allow delete: if isAgency() && 
