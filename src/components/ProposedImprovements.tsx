@@ -29,8 +29,15 @@ export function ProposedImprovements({ improvements, onAddPoint, onApprove, onCo
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
 
-  const totalPages = Math.max(1, Math.ceil(improvements.length / ITEMS_PER_PAGE));
-  const paginatedImprovements = improvements.slice(
+  // Sort improvements by createdAt in descending order (latest first)
+  const sortedImprovements = [...improvements].sort((a, b) => {
+    const dateA = new Date(a.createdAt).getTime();
+    const dateB = new Date(b.createdAt).getTime();
+    return dateB - dateA;
+  });
+
+  const totalPages = Math.max(1, Math.ceil(sortedImprovements.length / ITEMS_PER_PAGE));
+  const paginatedImprovements = sortedImprovements.slice(
     (currentPage - 1) * ITEMS_PER_PAGE,
     currentPage * ITEMS_PER_PAGE
   );
