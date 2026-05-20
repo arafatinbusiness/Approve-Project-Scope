@@ -28,29 +28,6 @@ function removeUndefined<T extends Record<string, any>>(obj: T): T {
   return cleaned as T;
 }
 
-function generateDefaultMilestones(totalValue: number, startDate?: string): Milestone[] {
-  const now = startDate ? new Date(startDate) : new Date();
-  const weekFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
-  const twoWeeks = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
-  const threeWeeks = new Date(now.getTime() + 21 * 24 * 60 * 60 * 1000);
-  const fourWeeks = new Date(now.getTime() + 28 * 24 * 60 * 60 * 1000);
-
-  const formatDate = (d: Date) => {
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    return `${months[d.getMonth()]} ${String(d.getDate()).padStart(2, '0')}`;
-  };
-
-  const halfAmount = Math.round(totalValue / 2);
-
-  return [
-    { id: 'ms-1', label: 'Architectural Review', date: formatDate(now), current: true, completed: false, amount: halfAmount },
-    { id: 'ms-2', label: 'Component Factory', date: formatDate(weekFromNow), current: false, completed: false, amount: 0 },
-    { id: 'ms-3', label: 'Logic Integration', date: formatDate(twoWeeks), current: false, completed: false, amount: 0 },
-    { id: 'ms-4', label: 'Beta Handover', date: formatDate(threeWeeks), current: false, completed: false, amount: 0 },
-    { id: 'ms-5', label: 'Final Delivery', date: formatDate(fourWeeks), current: false, completed: false, amount: totalValue - halfAmount },
-  ];
-}
-
 export async function createProject(
   name: string, 
   description: string, 
@@ -80,7 +57,7 @@ export async function createProject(
     totalValue,
     tasks: [] as ProjectTask[],
     improvements: [] as ImprovementPoint[],
-    milestones: generateDefaultMilestones(totalValue, startDate),
+    milestones: [] as Milestone[],
   };
 
   const docRef = await addDoc(collection(db, PROJECTS_COLLECTION), project);
