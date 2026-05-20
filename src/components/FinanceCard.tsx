@@ -120,16 +120,19 @@ export function FinanceCard({ totalValue = 0, milestones = [], onAddMilestone, o
                     )} />
                     <span className={cn(
                       "text-[13px] font-black uppercase tracking-tight",
-                      milestone.completed ? "text-agency-black" : "text-slate-300"
+                      milestone.completed ? "text-agency-black" : "text-slate-600"
                     )}>
                       {milestone.label}
                     </span>
-                    <span className="text-[9px] font-mono text-slate-300">{milestone.date}</span>
+                    <span className={cn(
+                      "text-[9px] font-mono",
+                      milestone.completed ? "text-slate-400" : "text-slate-500"
+                    )}>{milestone.date}</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className={cn(
                       "text-sm font-black font-mono",
-                      milestone.completed ? "text-agency-green" : "text-slate-200"
+                      milestone.completed ? "text-agency-green" : "text-slate-500"
                     )}>
                       ${formatCurrency(milestone.amount)}
                     </span>

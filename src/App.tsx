@@ -1618,12 +1618,11 @@ export default function App() {
                   Your project is progressing well.
                 </p>
 
-                {/* Payment reminder section */}
+                {/* Payment reminder section - only from Firebase data */}
                 {(() => {
                   const milestones = selectedProject.milestones || [];
-                  const isDefaultMilestones = milestones.length > 0 && milestones.every(m => /^ms-\d+$/.test(m.id));
                   const allPaid = milestones.length > 0 && milestones.every(m => m.completed);
-                  const hasAnyPayment = milestones.some(m => m.completed);
+                  const unpaidMilestones = milestones.filter(m => !m.completed);
 
                   if (allPaid) {
                     return (
@@ -1635,20 +1634,6 @@ export default function App() {
                     );
                   }
 
-                  if (milestones.length === 0 || isDefaultMilestones) {
-                    return (
-                      <div className="bg-amber-50 border border-amber-200 rounded-sm p-4 space-y-2">
-                        <p className="text-[11px] font-black text-amber-700 uppercase tracking-widest">
-                          💰 Payment Reminder
-                        </p>
-                        <p className="text-xs text-slate-600 font-bold">
-                          Full project value of <span className="text-agency-black">${selectedProject.totalValue?.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span> is due. No payment has been made yet.
-                        </p>
-                      </div>
-                    );
-                  }
-
-                  const unpaidMilestones = milestones.filter(m => !m.completed);
                   if (unpaidMilestones.length > 0) {
                     return (
                       <div className="bg-amber-50 border border-amber-200 rounded-sm p-4 space-y-2">
@@ -1712,67 +1697,52 @@ export default function App() {
                 {(() => {
                   const milestones = selectedProject.milestones || [];
                   const unpaidMilestones = milestones.filter(m => !m.completed);
-                  // Check if milestones are auto-generated defaults (ids like "ms-1", "ms-2", etc.)
-                  const isDefaultMilestones = milestones.length > 0 && milestones.every(m => /^ms-\d+$/.test(m.id));
                   
-                  // Show full payment if: no milestones, OR all are auto-generated defaults
-                  if (milestones.length === 0 || isDefaultMilestones) {
+                  // Show next unpaid milestone - only from Firebase data
+                  if (unpaidMilestones.length > 0) {
+                    const nextMilestone = unpaidMilestones[0];
+                    const paidCount = milestones.filter(m => m.completed).length;
+                    
                     return (
                       <div className="space-y-3">
                         <div className="text-lg font-black text-amber-900">
-                          Full Payment Due
+                          Upcoming Payment
                         </div>
-                        <div className="text-3xl font-black text-agency-black">
-                          ${selectedProject.totalValue?.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                        <div className="bg-amber-50 border border-amber-200 rounded-sm p-4 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-black uppercase tracking-widest text-slate-500">
+                              {nextMilestone.label}
+                            </span>
+                            <span className="text-lg font-black text-agency-black">
+                              ${nextMilestone.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                            </span>
+                          </div>
+                          <div className="text-[10px] font-mono text-amber-600">
+                            Due: {nextMilestone.date}
+                          </div>
                         </div>
-                        <p className="text-xs text-slate-600 font-bold leading-relaxed">
-                          No payment plan has been set up for this project yet. Please arrange the full payment at your earliest convenience.
-                        </p>
+                        <div className="flex items-center gap-2 text-[10px] text-slate-400 font-mono">
+                          <span>Progress:</span>
+                          <div className="flex items-center gap-1">
+                            {milestones.map((m, i) => (
+                              <div
+                                key={i}
+                                className={cn(
+                                  "w-3 h-3 rounded-full border",
+                                  m.completed
+                                    ? "bg-emerald-500 border-emerald-500"
+                                    : "bg-slate-100 border-slate-200"
+                                )}
+                              />
+                            ))}
+                          </div>
+                          <span>{paidCount} of {milestones.length} paid</span>
+                        </div>
                       </div>
                     );
                   }
 
-                  // Show next unpaid milestone
-                  const nextMilestone = unpaidMilestones[0];
-                  const paidCount = milestones.filter(m => m.completed).length;
-                  
-                  return (
-                    <div className="space-y-3">
-                      <div className="text-lg font-black text-amber-900">
-                        Upcoming Payment
-                      </div>
-                      <div className="bg-amber-50 border border-amber-200 rounded-sm p-4 space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs font-black uppercase tracking-widest text-slate-500">
-                            {nextMilestone.label}
-                          </span>
-                          <span className="text-lg font-black text-agency-black">
-                            ${nextMilestone.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                          </span>
-                        </div>
-                        <div className="text-[10px] font-mono text-amber-600">
-                          Due: {nextMilestone.date}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2 text-[10px] text-slate-400 font-mono">
-                        <span>Progress:</span>
-                        <div className="flex items-center gap-1">
-                          {milestones.map((m, i) => (
-                            <div
-                              key={i}
-                              className={cn(
-                                "w-3 h-3 rounded-full border",
-                                m.completed
-                                  ? "bg-emerald-500 border-emerald-500"
-                                  : "bg-slate-100 border-slate-200"
-                              )}
-                            />
-                          ))}
-                        </div>
-                        <span>{paidCount} of {milestones.length} paid</span>
-                      </div>
-                    </div>
-                  );
+                  return null;
                 })()}
               </div>
 

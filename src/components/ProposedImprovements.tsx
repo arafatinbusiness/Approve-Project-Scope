@@ -160,8 +160,11 @@ export function ProposedImprovements({ improvements, onAddPoint, onApprove, onCo
           </div>
         )}
 
-        {paginatedImprovements.map((point) => {
+        {paginatedImprovements.map((point, index) => {
           const isConfirmed = point.agencyApproved && point.clientApproved;
+          // Calculate the actual index in the full sorted list
+          const actualIndex = sortedImprovements.indexOf(point);
+          const pointNumber = actualIndex + 1;
           
           return (
             <div 
@@ -180,6 +183,10 @@ export function ProposedImprovements({ improvements, onAddPoint, onApprove, onCo
               <div className="flex flex-col md:flex-row gap-6">
                 <div className="flex-1 space-y-2">
                   <div className="flex items-center gap-3">
+                    {/* Number badge for referencing agreement points */}
+                    <div className="shrink-0 w-8 h-8 bg-agency-black text-white rounded-sm flex items-center justify-center text-[11px] font-black font-mono">
+                      {pointNumber}
+                    </div>
                     <h4 className="text-base font-black tracking-tight text-agency-black uppercase">
                       {point.title}
                     </h4>
