@@ -164,7 +164,8 @@ export function ProposedImprovements({ improvements, onAddPoint, onApprove, onCo
           const isConfirmed = point.agencyApproved && point.clientApproved;
           // Calculate the actual index in the full sorted list
           const actualIndex = sortedImprovements.indexOf(point);
-          const pointNumber = actualIndex + 1;
+          // Number descending: #1 = oldest (last in sorted list), highest number = newest (first in sorted list)
+          const pointNumber = sortedImprovements.length - actualIndex;
           
           return (
             <div 
