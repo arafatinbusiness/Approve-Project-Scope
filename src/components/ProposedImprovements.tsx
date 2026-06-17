@@ -1,4 +1,4 @@
-import { Plus, User, Shield, Check, X, AlertCircle, Image, ExternalLink, CheckCircle, Calendar, ChevronLeft, ChevronRight, Clock } from 'lucide-react';
+import { Plus, User, Shield, Check, X, AlertCircle, Image, ExternalLink, CheckCircle, Calendar, ChevronLeft, ChevronRight, Clock, ChevronDown, ChevronUp } from 'lucide-react';
 import { useState } from 'react';
 import { ImprovementPoint } from '../types';
 import { cn } from '../lib/utils';
@@ -19,6 +19,34 @@ function formatDate(isoString: string): string {
   if (isNaN(d.getTime())) return 'N/A';
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   return `${months[d.getMonth()]} ${String(d.getDate()).padStart(2, '0')}, ${d.getFullYear()}`;
+}
+
+function DescriptionText({ text }: { text: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const needsTruncation = text.split('\n').length > 5 || text.length > 300;
+
+  return (
+    <div>
+      <p className={cn(
+        "text-xs text-slate-500 font-bold leading-relaxed pr-8 whitespace-pre-wrap",
+        !expanded && needsTruncation && "line-clamp-5"
+      )}>
+        {text}
+      </p>
+      {needsTruncation && (
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="mt-1 flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-agency-black transition-colors"
+        >
+          {expanded ? (
+            <>Show Less <ChevronUp size={12} /></>
+          ) : (
+            <>See More <ChevronDown size={12} /></>
+          )}
+        </button>
+      )}
+    </div>
+  );
 }
 
 export function ProposedImprovements({ improvements, onAddPoint, onApprove, onComplete, userRole }: ProposedImprovementsProps) {
@@ -198,9 +226,7 @@ export function ProposedImprovements({ improvements, onAddPoint, onApprove, onCo
                       Proposed by {point.suggestedBy}
                     </span>
                   </div>
-                  <p className="text-xs text-slate-500 font-bold leading-relaxed pr-8">
-                    {point.description}
-                  </p>
+                  <DescriptionText text={point.description} />
                   <div className="flex items-center gap-3 text-[10px] text-slate-400 font-mono">
                     {point.createdAt && (
                       <div className="flex items-center gap-1.5">

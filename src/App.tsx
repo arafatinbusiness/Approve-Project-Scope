@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import confetti from 'canvas-confetti';
-import { ShieldCheck, Rocket, Lock, ArrowRight, CheckCircle2, ChevronRight, UserCircle2, ShieldHalf, LogOut, Eye, EyeOff, Plus, FolderKanban, ExternalLink, Calendar, Clock, Users, Edit3, X, Save, Download, Filter } from 'lucide-react';
+import { ShieldCheck, Rocket, Lock, ArrowRight, CheckCircle2, ChevronRight, UserCircle2, ShieldHalf, LogOut, Eye, EyeOff, Plus, FolderKanban, ExternalLink, Calendar, Clock, Users, Edit3, X, Save, Download, Filter, ChevronDown, ChevronUp } from 'lucide-react';
 import { Header } from './components/Header';
 import { ProgressBar } from './components/ProgressBar';
 import { FinanceCard } from './components/FinanceCard';
@@ -185,6 +185,34 @@ function exportToExcelWithFilter(project: Project, dateFrom: string, dateTo: str
   const safeName = project.name.replace(/[^a-zA-Z0-9]/g, '_');
   const filterStr = dateFrom || dateTo ? `_filtered_${dateFrom || ''}_${dateTo || ''}` : '';
   XLSX.writeFile(wb, `${safeName}${filterStr}_${dateStr}.xlsx`);
+}
+
+function DescriptionText({ text }: { text: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const needsTruncation = text.split('\n').length > 5 || text.length > 300;
+
+  return (
+    <div>
+      <p className={cn(
+        "whitespace-pre-wrap",
+        !expanded && needsTruncation && "line-clamp-5"
+      )}>
+        {text}
+      </p>
+      {needsTruncation && (
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="mt-1 flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-agency-black transition-colors"
+        >
+          {expanded ? (
+            <>Show Less <ChevronUp size={12} /></>
+          ) : (
+            <>See More <ChevronDown size={12} /></>
+          )}
+        </button>
+      )}
+    </div>
+  );
 }
 
 export default function App() {
@@ -1165,7 +1193,7 @@ export default function App() {
                           </span>
                         )}
                       </div>
-                      <p className="text-xs text-slate-500 font-bold">{project.description}</p>
+                      <DescriptionText text={project.description} />
                       <div className="flex items-center gap-4 text-[10px] font-mono text-slate-400">
                         <span>{project.clientEmail}</span>
                         {project.clientFirstName && <span>{project.clientFirstName} {project.clientLastName}</span>}
@@ -1274,7 +1302,7 @@ export default function App() {
                 </span>
               )}
             </div>
-            <p className="text-sm text-slate-500 font-bold">{selectedProject.description}</p>
+            <DescriptionText text={selectedProject.description} />
             <div className="flex items-center gap-4 text-[10px] font-mono text-slate-400">
               <span>{selectedProject.clientEmail}</span>
               {selectedProject.clientFirstName && <span>{selectedProject.clientFirstName} {selectedProject.clientLastName}</span>}

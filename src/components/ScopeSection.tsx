@@ -1,4 +1,4 @@
-import { CheckCircle2, Clock, Plus, UserCircle2, ShieldHalf } from 'lucide-react';
+import { CheckCircle2, Clock, Plus, UserCircle2, ShieldHalf, ChevronDown, ChevronUp } from 'lucide-react';
 import { useState } from 'react';
 import { ProjectTask } from '../types';
 import { cn } from '../lib/utils';
@@ -9,6 +9,34 @@ interface ScopeSectionProps {
   onToggleTask?: (taskId: string, role: 'Agency' | 'Client') => void;
   onAddTask?: (title: string, description: string) => void;
   userRole?: 'Agency' | 'Client';
+}
+
+function DescriptionText({ text }: { text: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const needsTruncation = text.split('\n').length > 5 || text.length > 300;
+
+  return (
+    <div>
+      <p className={cn(
+        "text-[12px] leading-relaxed max-w-2xl font-bold transition-colors whitespace-pre-wrap",
+        !expanded && needsTruncation && "line-clamp-5"
+      )}>
+        {text}
+      </p>
+      {needsTruncation && (
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="mt-1 flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-agency-black transition-colors"
+        >
+          {expanded ? (
+            <>Show Less <ChevronUp size={12} /></>
+          ) : (
+            <>See More <ChevronDown size={12} /></>
+          )}
+        </button>
+      )}
+    </div>
+  );
 }
 
 export function ScopeSection({ title, tasks, onToggleTask, onAddTask, userRole }: ScopeSectionProps) {
@@ -142,12 +170,7 @@ export function ScopeSection({ title, tasks, onToggleTask, onAddTask, userRole }
                   )}
                 </div>
                 {task.description && (
-                  <p className={cn(
-                    "text-[12px] leading-relaxed max-w-2xl font-bold transition-colors",
-                    bothApproved ? "text-slate-700" : "text-slate-300"
-                  )}>
-                    {task.description}
-                  </p>
+                  <DescriptionText text={task.description} />
                 )}
               </div>
 
