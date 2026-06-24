@@ -28,7 +28,7 @@ function DescriptionText({ text }: { text: string }) {
   return (
     <div>
       <p className={cn(
-        "text-xs text-slate-500 font-bold leading-relaxed pr-8 whitespace-pre-wrap",
+        "text-xs text-agency-black font-bold leading-relaxed pr-8 whitespace-pre-wrap",
         !expanded && needsTruncation && "line-clamp-5"
       )}>
         {text}
